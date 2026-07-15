@@ -204,7 +204,8 @@ textarea.body{min-height:150px;line-height:1.55;white-space:pre-wrap;font-size:1
 .sh-chip.edit{display:inline-flex;align-items:center;gap:5px;background:var(--surface-2);color:var(--text)}
 .sh-chip.edit button{color:var(--faint);font-weight:700;font-size:12px}
 .sh-chip.edit button:hover{color:var(--late)}
-.sh-busy{font-size:11px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sh-busy{font-size:10.5px;color:var(--late);margin-top:3px;font-weight:600;background:var(--late-soft);padding:1px 5px;border-radius:5px;display:inline-block;font-family:'JetBrains Mono',monospace}
+.sh-nofree{font-size:10.5px;color:var(--faint);margin-top:2px;font-style:italic}
 .mp-day{display:grid;grid-template-columns:110px 1fr auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
 .mp-day:last-child{border-bottom:none}
 .mp-dname{font-size:13px;font-weight:600}
@@ -226,29 +227,45 @@ textarea.body{min-height:150px;line-height:1.55;white-space:pre-wrap;font-size:1
 .cal-cell-h.zoom:hover{background:var(--accent-soft)}
 .cal-cell-h.zoom:hover .cal-zoom{opacity:1}
 .cal-zoom{width:13px;height:13px;opacity:0;color:var(--accent);transition:opacity .12s}
-/* timeline giorno */
-.tl-card{padding:16px 18px 18px;overflow-x:auto}
-.tl-head{display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;min-width:640px}
-.tl-row{display:flex;align-items:center;gap:14px;padding:9px 0;border-top:1px solid var(--border);min-width:640px}
-.tl-who{width:150px;flex:0 0 150px;display:flex;align-items:center;gap:8px}
-.tl-name{font-size:13.5px;font-weight:600;line-height:1.25}
-.tl-you{font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-soft);padding:1px 5px;border-radius:5px;vertical-align:middle}
-.tl-hours{font-size:11px;color:var(--faint);font-family:'JetBrains Mono',monospace}
-.tl-track{position:relative;flex:1;height:38px;background:var(--surface-2);border-radius:8px;overflow:hidden}
-.tl-axis{height:22px;background:none;overflow:visible}
-.tl-gl{position:absolute;top:0;bottom:0;width:1px;background:var(--border)}
-.tl-hlbl{position:absolute;bottom:0;transform:translateX(-50%);font-size:10.5px;color:var(--faint);font-family:'JetBrains Mono',monospace;font-weight:600}
-.tl-block{position:absolute;top:4px;bottom:4px;border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;opacity:.9;transition:opacity .12s,transform .12s}
-.tl-block span{font-size:10.5px;font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.25)}
-.tl-block.mine{cursor:pointer}
-.tl-block.mine:hover{opacity:1;transform:scaleY(1.12)}
-.tl-busy{position:absolute;top:4px;bottom:4px;border-radius:6px;
-  background:repeating-linear-gradient(45deg,var(--faint) 0 5px,transparent 5px 10px);opacity:.5;border:1px solid var(--border)}
-.tl-now{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--late);z-index:3}
-.tl-now span{position:absolute;top:-4px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--late)}
-.tl-lg-block{width:16px;height:9px;border-radius:3px;background:var(--accent);display:inline-block}
-.tl-lg-busy{width:16px;height:9px;border-radius:3px;display:inline-block;background:repeating-linear-gradient(45deg,var(--faint) 0 4px,transparent 4px 8px);border:1px solid var(--border)}
-@media(max-width:840px){.tl-who{width:104px;flex:0 0 104px}.tl-head,.tl-row{min-width:520px}}
+/* vista giorno stile calendario */
+.gc-card{padding:0;overflow:hidden}
+.gc-grid{display:flex;overflow-x:auto}
+.gc-gutter{flex:0 0 var(--gutter);position:sticky;left:0;z-index:4;background:var(--surface);border-right:1px solid var(--border)}
+.gc-gutter-h{height:56px;border-bottom:1px solid var(--border)}
+.gc-gutter-b{position:relative}
+.gc-hl{position:absolute;right:8px;transform:translateY(-50%);font-size:10.5px;color:var(--faint);font-family:'JetBrains Mono',monospace;font-weight:600;white-space:nowrap}
+.gc-now-lbl{position:absolute;right:4px;transform:translateY(-50%);font-size:9.5px;font-weight:700;color:#fff;background:var(--late);border-radius:4px;padding:1px 4px;font-family:'JetBrains Mono',monospace;z-index:5}
+.gc-cols{display:flex;flex:1;min-width:0}
+.gc-col{flex:1;min-width:150px;border-right:1px solid var(--border)}
+.gc-col:last-child{border-right:none}
+.gc-col-h{height:56px;padding:8px 10px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;gap:2px;background:var(--surface-2);position:sticky;top:0;z-index:3}
+.gc-col-h.mine{background:var(--accent-soft)}
+.gc-col-h .sh-dot{position:absolute;top:10px;right:10px}
+.gc-col-n{font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gc-col-s{font-size:10.5px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.gc-busy-n{color:var(--late)}
+.gc-track{position:relative;background:var(--surface)}
+.gc-line{position:absolute;left:0;right:0;height:1px;background:var(--border);opacity:.6}
+.gc-ev{position:absolute;left:4px;right:4px;border-radius:6px;padding:3px 7px;overflow:hidden;display:flex;flex-direction:column;justify-content:center;z-index:2}
+.gc-ev-t{font-size:11px;font-weight:700;font-family:'JetBrains Mono',monospace;white-space:nowrap;line-height:1.3}
+.gc-ev-s{font-size:10px;font-weight:600;opacity:.85;white-space:nowrap;line-height:1.2}
+.gc-ev.free{background:color-mix(in srgb,var(--c) 18%,var(--surface));border-left:3px solid var(--c);color:var(--c)}
+[data-theme="dark"] .gc-ev.free{background:color-mix(in srgb,var(--c) 30%,var(--surface));color:#fff}
+.gc-ev.free.mine{cursor:pointer}
+.gc-ev.free.mine:hover{background:color-mix(in srgb,var(--c) 32%,var(--surface));box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.gc-ev.busy{z-index:3;background:repeating-linear-gradient(135deg,var(--late-soft) 0 7px,color-mix(in srgb,var(--late) 22%,var(--surface)) 7px 14px);
+  border-left:3px solid var(--late);color:var(--late);left:14px}
+.gc-lock{font-size:9px;line-height:1}
+.gc-noavail{position:absolute;left:4px;right:4px;border-radius:6px;background:repeating-linear-gradient(45deg,var(--border) 0 6px,transparent 6px 12px);opacity:.5;
+  display:flex;align-items:center;justify-content:center}
+.gc-noavail span{font-size:11px;color:var(--muted);font-weight:600;background:var(--surface);padding:2px 8px;border-radius:6px;border:1px solid var(--border)}
+.gc-now{position:absolute;left:0;right:0;height:2px;background:var(--late);z-index:5}
+.gc-now::before{content:'';position:absolute;left:-1px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--late)}
+.lg-free{width:16px;height:10px;border-radius:3px;background:color-mix(in srgb,var(--accent) 18%,var(--surface));border-left:3px solid var(--accent);display:inline-block}
+.lg-busy{width:16px;height:10px;border-radius:3px;display:inline-block;border-left:3px solid var(--late);
+  background:repeating-linear-gradient(135deg,var(--late-soft) 0 4px,color-mix(in srgb,var(--late) 22%,var(--surface)) 4px 8px)}
+.lg-none{width:16px;height:10px;border-radius:3px;display:inline-block;background:repeating-linear-gradient(45deg,var(--border) 0 4px,transparent 4px 8px);border:1px solid var(--border)}
+@media(max-width:840px){.gc-col{min-width:120px}.gc-col-n{font-size:12px}}
 @media(max-width:840px){.mp-day{grid-template-columns:1fr;gap:6px}}
 
 /* planning */
@@ -546,10 +563,10 @@ function resetUsage(){if(!confirm('Azzerare il conteggio di spesa stimata?'))ret
 
 /* ---------- date utils ---------- */
 function today(){const d=new Date();d.setHours(0,0,0,0);return d}
-function parseD(s){if(!s)return null;const d=new Date(s);d.setHours(0,0,0,0);return d}
+function parseD(s){if(!s)return null;const p=String(s).slice(0,10).split('-');if(p.length===3&&p[0].length===4){const d=new Date(+p[0],+p[1]-1,+p[2]);d.setHours(0,0,0,0);return d}const d=new Date(s);d.setHours(0,0,0,0);return d}
 function fmtD(d){if(!d)return '—';return d.toLocaleDateString('it-IT',{day:'2-digit',month:'short'})}
 function fmtDLong(d){if(!d)return '—';return d.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'})}
-function isoD(d){return d.toISOString().slice(0,10)}
+function isoD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);x.setHours(0,0,0,0);return x}
 function daysBetween(a,b){return Math.round((b-a)/86400000)}
 function nextWorkday(d){if(!state.config.saltaWeekend)return d;let x=new Date(d);while(x.getDay()===0||x.getDay()===6)x=addDays(x,1);return x}
@@ -1532,6 +1549,15 @@ function subtractRange(blocks,off){
   });
   return res.filter(b=>b.end>b.start);
 }
+function mergeBlocks(bl){const b=bl.slice().sort((a,c)=>a.start-c.start);const m=[];b.forEach(x=>{const l=m[m.length-1];if(l&&x.start<=l.end)l.end=Math.max(l.end,x.end);else m.push({...x})});return m}
+function subtractAll(blocks,offs){let r=blocks;offs.forEach(o=>{r=subtractRange(r,o)});return r}
+function intersectRanges(a,b){const res=[];a.forEach(x=>b.forEach(y=>{const s=Math.max(x.start,y.start),e=Math.min(x.end,y.end);if(e>s)res.push({start:s,end:e})}));return mergeBlocks(res)}
+// scompone la giornata di una persona in fasce LIBERE e fasce OCCUPATE (impegni calendario)
+function daySplit(memberId,iso){
+  const avail=effectiveBlocks(memberId,iso);
+  const busy=mergeBlocks(state.shifts.gcal.filter(g=>g.member_id===memberId&&g.date===iso).map(g=>({start:g.start_min,end:g.end_min})));
+  return {avail, free:subtractAll(avail,busy), occupied:intersectRanges(avail,busy)};
+}
 function effectiveBlocks(memberId,iso){
   const wd=isoWd(parseD(iso));
   let blocks=state.shifts.rules.filter(r=>r.member_id===memberId&&r.weekday===wd).map(r=>({start:r.start_min,end:r.end_min}));
@@ -1810,16 +1836,15 @@ function viewGriglia(){
   const grid=days.map(d=>{
     const iso=isoD(d);const isToday=sameDay(d,t);const wknd=(d.getDay()===0||d.getDay()===6);
     const rows=members.map(m=>{
-      const blocks=effectiveBlocks(m.id,iso);
-      const busy=state.shifts.gcal.filter(g=>g.member_id===m.id&&g.date===iso).sort((a,b)=>a.start_min-b.start_min);
-      if(!blocks.length&&!busy.length)return '';
+      const {avail,free,occupied}=daySplit(m.id,iso);
+      if(!avail.length)return '';
       const mine=m.id===state.shifts.meId;
       return `<div class="sh-m">
         <span class="sh-dot" style="background:${m.color}"></span>
         <div class="sh-m-body">
           <div class="sh-name">${esc(m.name)}</div>
-          ${blocks.length?`<div class="sh-blocks">${blocks.map(b=>`<span class="sh-chip"${mine?` onclick="offForDay('${m.id}','${iso}',${b.start},${b.end})" title="Rimuovi solo per questo giorno"`:''}>${m2t(b.start)}–${m2t(b.end)}</span>`).join('')}</div>`:''}
-          ${busy.map(g=>`<div class="sh-busy">🔒 ${m2t(g.start_min)}–${m2t(g.end_min)} · non disponibile</div>`).join('')}
+          ${free.length?`<div class="sh-blocks">${free.map(b=>`<span class="sh-chip"${mine?` onclick="offForDay('${m.id}','${iso}',${b.start},${b.end})" title="Rimuovi solo per questo giorno"`:''}>${m2t(b.start)}–${m2t(b.end)}</span>`).join('')}</div>`:'<div class="sh-nofree">nessuna fascia libera</div>'}
+          ${occupied.map(b=>`<div class="sh-busy">🔒 ${m2t(b.start)}–${m2t(b.end)} · non disponibile</div>`).join('')}
         </div></div>`;
     }).join('');
     return `<div class="cal-cell${isToday?' today':''}${wknd?' wknd':''}">
@@ -1849,63 +1874,80 @@ function closeDay(){state.shifts.day=null;state.view='griglia';render()}
 function viewGiorno(){
   const iso=state.shifts.day;const d=parseD(iso);const t=today();
   const members=state.shifts.members;
-  // finestra oraria adattiva
+  // finestra oraria adattiva sui dati del giorno
   let lo=24*60, hi=0;
   members.forEach(m=>{
-    effectiveBlocks(m.id,iso).forEach(b=>{lo=Math.min(lo,b.start);hi=Math.max(hi,b.end)});
-    state.shifts.gcal.filter(g=>g.member_id===m.id&&g.date===iso).forEach(g=>{lo=Math.min(lo,g.start_min);hi=Math.max(hi,g.end_min)});
+    const s=daySplit(m.id,iso);
+    s.avail.forEach(b=>{lo=Math.min(lo,b.start);hi=Math.max(hi,b.end)});
   });
   if(lo>hi){lo=8*60;hi=20*60;}
   lo=Math.max(0,Math.floor(lo/60)*60-60); hi=Math.min(24*60,Math.ceil(hi/60)*60+60);
   const span=hi-lo;
-  const pct=v=>((v-lo)/span*100);
+  const PX=52;                       // altezza di un'ora
+  const H=span/60*PX;
+  const y=v=>(v-lo)/60*PX;
   const hours=[];for(let h=Math.ceil(lo/60);h<=Math.floor(hi/60);h++)hours.push(h);
+  const now=new Date();const nowMin=now.getHours()*60+now.getMinutes();
+  const showNow=sameDay(d,t)&&nowMin>=lo&&nowMin<=hi;
 
-  const rows=members.map(m=>{
-    const blocks=effectiveBlocks(m.id,iso);
-    const busy=state.shifts.gcal.filter(g=>g.member_id===m.id&&g.date===iso);
+  const cols=members.map(m=>{
+    const {avail,free,occupied}=daySplit(m.id,iso);
     const mine=m.id===state.shifts.meId;
-    const tot=blocks.reduce((s,b)=>s+(b.end-b.start),0);
-    return `<div class="tl-row">
-      <div class="tl-who">
+    const tot=free.reduce((s,b)=>s+(b.end-b.start),0);
+    const busyTot=occupied.reduce((s,b)=>s+(b.end-b.start),0);
+    const body = avail.length ? `
+      ${free.map(b=>{const hgt=(b.end-b.start)/60*PX;
+        return `<div class="gc-ev free${mine?' mine':''}" style="top:${y(b.start)}px;height:${hgt}px;--c:${m.color}"
+          ${mine?`onclick="offForDay('${m.id}','${iso}',${b.start},${b.end})" title="Clicca per rimuovere questa fascia solo oggi"`:''}>
+          <span class="gc-ev-t">${m2t(b.start)} – ${m2t(b.end)}</span>
+          ${hgt>34?'<span class="gc-ev-s">disponibile</span>':''}
+        </div>`}).join('')}
+      ${occupied.map(b=>{const hgt=(b.end-b.start)/60*PX;
+        return `<div class="gc-ev busy" style="top:${y(b.start)}px;height:${hgt}px" title="Non disponibile ${escAttr(m2t(b.start)+'–'+m2t(b.end))}">
+          <span class="gc-ev-t">${m2t(b.start)} – ${m2t(b.end)}</span>
+          ${hgt>34?'<span class="gc-ev-s">non disponibile</span>':'<span class="gc-lock">🔒</span>'}
+        </div>`}).join('')}`
+      : `<div class="gc-noavail" style="top:0;height:${H}px"><span>non disponibile</span></div>`;
+    return `<div class="gc-col">
+      <div class="gc-col-h${mine?' mine':''}">
         <span class="sh-dot" style="background:${m.color}"></span>
-        <div><div class="tl-name">${esc(m.name)}${mine?' <span class="tl-you">tu</span>':''}</div>
-        <div class="tl-hours">${tot?Math.floor(tot/60)+'h'+(tot%60?String(tot%60).padStart(2,'0'):''):'non disponibile'}</div></div>
+        <div class="gc-col-n">${esc(m.name)}${mine?' <span class="tl-you">tu</span>':''}</div>
+        <div class="gc-col-s">${tot?Math.floor(tot/60)+'h'+(tot%60?String(tot%60).padStart(2,'0'):'')+' libere':'non disponibile'}${busyTot?` · <span class="gc-busy-n">${Math.floor(busyTot/60)?Math.floor(busyTot/60)+'h':''}${busyTot%60?String(busyTot%60)+'m':''} occupate</span>`:''}</div>
       </div>
-      <div class="tl-track">
-        ${hours.map(h=>`<div class="tl-gl" style="left:${pct(h*60)}%"></div>`).join('')}
-        ${blocks.map(b=>`<div class="tl-block${mine?' mine':''}" style="left:${pct(b.start)}%;width:${(b.end-b.start)/span*100}%;background:${m.color}"
-          ${mine?`onclick="offForDay('${m.id}','${iso}',${b.start},${b.end})" title="Clicca per rimuovere questa fascia solo oggi"`:`title="${escAttr(m2t(b.start)+'–'+m2t(b.end))}"`}>
-          <span>${m2t(b.start)}–${m2t(b.end)}</span></div>`).join('')}
-        ${busy.map(g=>`<div class="tl-busy" style="left:${pct(g.start_min)}%;width:${(g.end_min-g.start_min)/span*100}%" title="Non disponibile ${escAttr(m2t(g.start_min)+'–'+m2t(g.end_min))}"></div>`).join('')}
+      <div class="gc-track" style="height:${H}px">
+        ${hours.map(h=>`<div class="gc-line" style="top:${y(h*60)}px"></div>`).join('')}
+        ${body}
+        ${showNow?`<div class="gc-now" style="top:${y(nowMin)}px"></div>`:''}
       </div>
     </div>`;
   }).join('');
 
-  const now=new Date();const nowMin=now.getHours()*60+now.getMinutes();
-  const showNow=sameDay(d,t)&&nowMin>=lo&&nowMin<=hi;
-
+  const dispon=members.filter(m=>daySplit(m.id,iso).free.length).length;
   return `
   <div class="cal-bar">
     <button class="btn sm ghost" onclick="openDay('${isoD(addDays(d,-1))}')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
-    <div class="cal-title"><b style="font-size:17px">${fmtDLong(d)}</b><span class="email-cell">${sameDay(d,t)?'oggi · ':''}${members.filter(m=>effectiveBlocks(m.id,iso).length).length} disponibili su ${members.length}</span></div>
+    <div class="cal-title"><b style="font-size:17px;text-transform:capitalize">${fmtDLong(d)}</b><span class="email-cell">${sameDay(d,t)?'oggi · ':''}${dispon} disponibili su ${members.length}</span></div>
     <button class="btn sm ghost" onclick="openDay('${isoD(addDays(d,1))}')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+    ${!sameDay(d,t)?`<button class="btn sm" onclick="openDay('${isoD(t)}')">Oggi</button>`:''}
     <button class="btn sm" onclick="closeDay()">← Settimana</button>
   </div>
-  <div class="card tl-card">
-    <div class="tl-head">
-      <div class="tl-who"></div>
-      <div class="tl-track tl-axis">
-        ${hours.map(h=>`<div class="tl-hlbl" style="left:${pct(h*60)}%">${String(h).padStart(2,'0')}</div>`).join('')}
-        ${showNow?`<div class="tl-now" style="left:${pct(nowMin)}%"><span></span></div>`:''}
+  <div class="card gc-card">
+    <div class="gc-grid" style="--gutter:52px">
+      <div class="gc-gutter">
+        <div class="gc-gutter-h"></div>
+        <div class="gc-gutter-b" style="height:${H}px">
+          ${hours.map(h=>`<div class="gc-hl" style="top:${y(h*60)}px">${String(h).padStart(2,'0')}:00</div>`).join('')}
+          ${showNow?`<div class="gc-now-lbl" style="top:${y(nowMin)}px">${m2t(nowMin)}</div>`:''}
+        </div>
       </div>
+      <div class="gc-cols">${cols||'<div class="cal-empty" style="padding:20px">Nessun collaboratore</div>'}</div>
     </div>
-    ${rows||'<div class="cal-empty" style="padding:20px">Nessun collaboratore</div>'}
   </div>
   <div class="cal-legend">
-    <span class="cal-leg"><span class="tl-lg-block"></span>Disponibile</span>
-    <span class="cal-leg"><span class="tl-lg-busy"></span>Impegno da calendario (non disponibile)</span>
-    <span class="cal-leg" style="margin-left:auto;color:var(--faint)">Clicca una tua fascia per rimuoverla solo oggi</span>
+    <span class="cal-leg"><span class="lg-free"></span>Disponibile</span>
+    <span class="cal-leg"><span class="lg-busy"></span>Occupato da un impegno in calendario</span>
+    <span class="cal-leg"><span class="lg-none"></span>Fuori disponibilità</span>
+    <span class="cal-leg" style="margin-left:auto;color:var(--faint)">Clicca una tua fascia verde per rimuoverla solo oggi</span>
   </div>`;
 }
 
