@@ -216,6 +216,39 @@ textarea.body{min-height:150px;line-height:1.55;white-space:pre-wrap;font-size:1
 .ex-add input,.ex-add select{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:13px}
 .ex-whole{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
 .ex-row{display:flex;align-items:center;gap:10px;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px}
+/* editing avanzato */
+.sh-chip.edit .chip-t{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--text);padding:0}
+.sh-chip.edit .chip-t:hover{color:var(--accent);text-decoration:underline}
+.mp-dname{display:flex;align-items:center;gap:8px}
+.mp-clear{font-size:10px;font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.03em}
+.mp-clear:hover{color:var(--late)}
+.cal-cell-h.zoom{cursor:pointer}
+.cal-cell-h.zoom:hover{background:var(--accent-soft)}
+.cal-cell-h.zoom:hover .cal-zoom{opacity:1}
+.cal-zoom{width:13px;height:13px;opacity:0;color:var(--accent);transition:opacity .12s}
+/* timeline giorno */
+.tl-card{padding:16px 18px 18px;overflow-x:auto}
+.tl-head{display:flex;align-items:flex-end;gap:14px;margin-bottom:10px;min-width:640px}
+.tl-row{display:flex;align-items:center;gap:14px;padding:9px 0;border-top:1px solid var(--border);min-width:640px}
+.tl-who{width:150px;flex:0 0 150px;display:flex;align-items:center;gap:8px}
+.tl-name{font-size:13.5px;font-weight:600;line-height:1.25}
+.tl-you{font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-soft);padding:1px 5px;border-radius:5px;vertical-align:middle}
+.tl-hours{font-size:11px;color:var(--faint);font-family:'JetBrains Mono',monospace}
+.tl-track{position:relative;flex:1;height:38px;background:var(--surface-2);border-radius:8px;overflow:hidden}
+.tl-axis{height:22px;background:none;overflow:visible}
+.tl-gl{position:absolute;top:0;bottom:0;width:1px;background:var(--border)}
+.tl-hlbl{position:absolute;bottom:0;transform:translateX(-50%);font-size:10.5px;color:var(--faint);font-family:'JetBrains Mono',monospace;font-weight:600}
+.tl-block{position:absolute;top:4px;bottom:4px;border-radius:6px;display:flex;align-items:center;justify-content:center;overflow:hidden;opacity:.9;transition:opacity .12s,transform .12s}
+.tl-block span{font-size:10.5px;font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.25)}
+.tl-block.mine{cursor:pointer}
+.tl-block.mine:hover{opacity:1;transform:scaleY(1.12)}
+.tl-busy{position:absolute;top:4px;bottom:4px;border-radius:6px;
+  background:repeating-linear-gradient(45deg,var(--faint) 0 5px,transparent 5px 10px);opacity:.5;border:1px solid var(--border)}
+.tl-now{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--late);z-index:3}
+.tl-now span{position:absolute;top:-4px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--late)}
+.tl-lg-block{width:16px;height:9px;border-radius:3px;background:var(--accent);display:inline-block}
+.tl-lg-busy{width:16px;height:9px;border-radius:3px;display:inline-block;background:repeating-linear-gradient(45deg,var(--faint) 0 4px,transparent 4px 8px);border:1px solid var(--border)}
+@media(max-width:840px){.tl-who{width:104px;flex:0 0 104px}.tl-head,.tl-row{min-width:520px}}
 @media(max-width:840px){.mp-day{grid-template-columns:1fr;gap:6px}}
 
 /* planning */
@@ -244,7 +277,7 @@ textarea.body{min-height:150px;line-height:1.55;white-space:pre-wrap;font-size:1
 .cal-title{flex:1;text-align:center;display:flex;flex-direction:column;line-height:1.25}
 .cal-title b{font-size:15px;text-transform:capitalize}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
-.cal-cell{background:var(--surface);border:1px solid var(--border);border-radius:10px;min-height:140px;display:flex;flex-direction:column;overflow:hidden}
+.cal-cell{background:var(--surface);border:1px solid var(--border);border-radius:10px;min-height:190px;display:flex;flex-direction:column;overflow:hidden}
 .cal-cell.today{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .cal-cell.wknd{background:var(--surface-2)}
 .cal-cell.past{opacity:.62}
@@ -476,7 +509,7 @@ let state = {
   module: load('flo_module','outbound'),
   google: load(LS.gauth, {token:null, email:null, expires:0}),
   filter: 'tutti', search:'',
-  shifts: {members:[], rules:[], exceptions:[], gcal:[], meId:null, week:0, view:'griglia', needsSetup:false},
+  shifts: {members:[], rules:[], exceptions:[], gcal:[], meId:null, week:0, day:null, view:'griglia', needsSetup:false},
 };
 // i valori del team valgono se il singolo non ne ha di propri
 if(!state.config.supabaseUrl && APP_DEFAULTS.supabaseUrl) state.config.supabaseUrl=APP_DEFAULTS.supabaseUrl;
@@ -1566,6 +1599,60 @@ async function addItem(kind,extra){
   await shiftsLoad();
 }
 async function delItem(id){const {error}=await supa.from('shift_items').delete().eq('id',id);if(error)toast(error.message,'err');else await shiftsLoad();}
+// modifica completa di una fascia ricorrente
+function editRule(id){
+  const r=state.shifts.rules.find(x=>x.id===id);if(!r)return;
+  const ov=document.createElement('div');ov.className='overlay';ov.style.zIndex='60';ov.onclick=e=>{if(e.target===ov)ov.remove()};
+  ov.innerHTML=`<div class="modal" style="max-width:380px" onclick="event.stopPropagation()">
+    <div class="modal-h"><h3>Modifica fascia · ${WD_NAMES[r.weekday]}</h3><div class="x" onclick="this.closest('.overlay').remove()">✕</div></div>
+    <div class="modal-b">
+      <div style="display:flex;gap:10px;align-items:center;justify-content:center">
+        <input type="time" id="er-s" value="${m2t(r.start_min)}" style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:15px">
+        <span>–</span>
+        <input type="time" id="er-e" value="${m2t(r.end_min)}" style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:15px">
+      </div>
+      <div class="helptip">Vale per tutti i ${WD_NAMES[r.weekday].toLowerCase()}. Per cambiare un solo giorno, usa le eccezioni.</div>
+    </div>
+    <div class="modal-f" style="justify-content:space-between">
+      <button class="btn sm ghost danger" onclick="this.closest('.overlay').remove();delItem('${id}')">Elimina</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="this.closest('.overlay').remove()">Annulla</button>
+        <button class="btn primary" onclick="saveRule('${id}')">Salva</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+async function saveRule(id){
+  const s=document.getElementById('er-s').value,e=document.getElementById('er-e').value;
+  if(!s||!e){toast('Imposta inizio e fine','warn');return}
+  if(t2m(e)<=t2m(s)){toast("La fine deve essere dopo l'inizio",'warn');return}
+  const ov=document.querySelector('.overlay[style*="60"]');if(ov)ov.remove();
+  const {error}=await supa.from('shift_items').update({start_min:t2m(s),end_min:t2m(e),updated_at:new Date().toISOString()}).eq('id',id);
+  if(error){toast(error.message,'err');return}
+  await shiftsLoad();toast('Fascia aggiornata','ok');
+}
+async function clearDay(wd){
+  const m=me();if(!m)return;
+  if(!confirm(`Rimuovere tutte le fasce del ${WD_NAMES[wd].toLowerCase()}?`))return;
+  const {error}=await supa.from('shift_items').delete().eq('member_id',m.id).eq('kind','rule').eq('weekday',wd);
+  if(error){toast(error.message,'err');return}
+  await shiftsLoad();toast(WD_NAMES[wd]+' svuotato','ok');
+}
+async function clearWeek(){
+  const m=me();if(!m)return;
+  if(!confirm('Rimuovere TUTTA la disponibilità settimanale ricorrente?\n\nLe eccezioni sui singoli giorni restano.'))return;
+  const {error}=await supa.from('shift_items').delete().eq('member_id',m.id).eq('kind','rule');
+  if(error){toast(error.message,'err');return}
+  await shiftsLoad();toast('Disponibilità settimanale azzerata','warn');
+}
+async function disableGcal(){
+  const m=me();if(!m)return;
+  if(!confirm('Scollegare il Google Calendar?\n\nGli impegni importati verranno rimossi dalla vista turni.'))return;
+  await supa.from('shift_items').delete().eq('member_id',m.id).eq('kind','gcal');
+  await supa.from('shift_members').update({gcal:false,updated_at:new Date().toISOString()}).eq('id',m.id);
+  await shiftsLoad();toast('Calendario scollegato','ok');
+}
 function addRuleUI(wd){
   const s=document.getElementById('rb-s-'+wd).value,e=document.getElementById('rb-e-'+wd).value;
   if(!s||!e){toast('Imposta inizio e fine','warn');return}
@@ -1607,7 +1694,7 @@ async function syncGcal(){
     const evs=(r.items||[]).filter(e=>e.start&&e.start.dateTime&&e.end&&e.end.dateTime);
     await supa.from('shift_items').delete().eq('member_id',state.shifts.meId).eq('kind','gcal');
     const rows=evs.map(e=>{const s=new Date(e.start.dateTime),en=new Date(e.end.dateTime);
-      return siItem('gcal',{date:isoD(new Date(s.getFullYear(),s.getMonth(),s.getDate())),start_min:s.getHours()*60+s.getMinutes(),end_min:en.getHours()*60+en.getMinutes(),title:(e.summary||'Impegnato').slice(0,80)});});
+      return siItem('gcal',{date:isoD(new Date(s.getFullYear(),s.getMonth(),s.getDate())),start_min:s.getHours()*60+s.getMinutes(),end_min:en.getHours()*60+en.getMinutes(),title:null});});
     if(rows.length){const {error}=await supa.from('shift_items').insert(rows);if(error)throw error;}
     await shiftsLoad();
     toast(rows.length+' eventi dal Google Calendar sincronizzati','ok');
@@ -1663,7 +1750,7 @@ function copyShiftsSQL(){navigator.clipboard.writeText(SHIFTS_SQL).then(()=>toas
 
 /* ---- render turni ---- */
 function renderShifts(){
-  document.getElementById('viewTitle').textContent=state.view==='miadispo'?'La mia disponibilità':'Turni team';
+  document.getElementById('viewTitle').textContent=state.view==='miadispo'?'La mia disponibilità':(state.view==='giorno'?'Dettaglio giorno':'Turni team');
   const ta=document.getElementById('topActions');
   ta.innerHTML=`<button class="btn sm ghost" onclick="refreshShifts()" title="Aggiorna"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Aggiorna</button>`;
   const C=document.getElementById('content');
@@ -1674,7 +1761,7 @@ function renderShifts(){
     <button class="btn primary" onclick="showShiftsSQL()">Mostra SQL turni</button>
     <div style="margin-top:10px"><button class="btn sm ghost" onclick="shiftsLoad()">Ho eseguito l'SQL — ricontrolla</button></div></div>`;return;}
   if(!googleReady()){C.innerHTML=viewLogin();return;}
-  C.innerHTML = state.view==='miadispo'?viewMiaDispo():viewGriglia();
+  C.innerHTML = state.view==='miadispo'?viewMiaDispo():(state.view==='giorno'?viewGiorno():viewGriglia());
 }
 function viewLogin(){
   return `<div class="empty" style="padding-top:60px">
@@ -1713,11 +1800,15 @@ function viewGriglia(){
         <div class="sh-m-body">
           <div class="sh-name">${esc(m.name)}</div>
           ${blocks.length?`<div class="sh-blocks">${blocks.map(b=>`<span class="sh-chip"${mine?` onclick="offForDay('${m.id}','${iso}',${b.start},${b.end})" title="Rimuovi solo per questo giorno"`:''}>${m2t(b.start)}–${m2t(b.end)}</span>`).join('')}</div>`:''}
-          ${busy.map(g=>`<div class="sh-busy" title="${escAttr(g.title||'')}">🔒 ${m2t(g.start_min)}–${m2t(g.end_min)} ${esc(g.title||'')}</div>`).join('')}
+          ${busy.map(g=>`<div class="sh-busy">🔒 ${m2t(g.start_min)}–${m2t(g.end_min)} · non disponibile</div>`).join('')}
         </div></div>`;
     }).join('');
     return `<div class="cal-cell${isToday?' today':''}${wknd?' wknd':''}">
-      <div class="cal-cell-h"><span class="cal-dname">${d.toLocaleDateString('it-IT',{weekday:'short'})}</span><span class="cal-dnum">${d.getDate()}</span></div>
+      <div class="cal-cell-h zoom" onclick="openDay('${iso}')" title="Apri il dettaglio del giorno">
+        <span class="cal-dname">${d.toLocaleDateString('it-IT',{weekday:'short'})}</span>
+        <span class="cal-dnum">${d.getDate()}</span>
+        <svg class="cal-zoom" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3 M11 8v6 M8 11h6"/></svg>
+      </div>
       <div class="cal-items">${rows||'<div class="cal-empty">—</div>'}</div>
     </div>`;
   }).join('');
@@ -1731,6 +1822,72 @@ function viewGriglia(){
   </div>
   <div class="cal-grid">${grid}</div>
   <div class="cal-legend">${legend}<span class="cal-leg" style="margin-left:auto;color:var(--faint)">🔒 = impegno da Google Calendar</span></div>`;
+}
+
+/* ---- vista: giorno ingrandito (timeline oraria) ---- */
+function openDay(iso){state.shifts.day=iso;state.view='giorno';render()}
+function closeDay(){state.shifts.day=null;state.view='griglia';render()}
+function viewGiorno(){
+  const iso=state.shifts.day;const d=parseD(iso);const t=today();
+  const members=state.shifts.members;
+  // finestra oraria adattiva
+  let lo=24*60, hi=0;
+  members.forEach(m=>{
+    effectiveBlocks(m.id,iso).forEach(b=>{lo=Math.min(lo,b.start);hi=Math.max(hi,b.end)});
+    state.shifts.gcal.filter(g=>g.member_id===m.id&&g.date===iso).forEach(g=>{lo=Math.min(lo,g.start_min);hi=Math.max(hi,g.end_min)});
+  });
+  if(lo>hi){lo=8*60;hi=20*60;}
+  lo=Math.max(0,Math.floor(lo/60)*60-60); hi=Math.min(24*60,Math.ceil(hi/60)*60+60);
+  const span=hi-lo;
+  const pct=v=>((v-lo)/span*100);
+  const hours=[];for(let h=Math.ceil(lo/60);h<=Math.floor(hi/60);h++)hours.push(h);
+
+  const rows=members.map(m=>{
+    const blocks=effectiveBlocks(m.id,iso);
+    const busy=state.shifts.gcal.filter(g=>g.member_id===m.id&&g.date===iso);
+    const mine=m.id===state.shifts.meId;
+    const tot=blocks.reduce((s,b)=>s+(b.end-b.start),0);
+    return `<div class="tl-row">
+      <div class="tl-who">
+        <span class="sh-dot" style="background:${m.color}"></span>
+        <div><div class="tl-name">${esc(m.name)}${mine?' <span class="tl-you">tu</span>':''}</div>
+        <div class="tl-hours">${tot?Math.floor(tot/60)+'h'+(tot%60?String(tot%60).padStart(2,'0'):''):'non disponibile'}</div></div>
+      </div>
+      <div class="tl-track">
+        ${hours.map(h=>`<div class="tl-gl" style="left:${pct(h*60)}%"></div>`).join('')}
+        ${blocks.map(b=>`<div class="tl-block${mine?' mine':''}" style="left:${pct(b.start)}%;width:${(b.end-b.start)/span*100}%;background:${m.color}"
+          ${mine?`onclick="offForDay('${m.id}','${iso}',${b.start},${b.end})" title="Clicca per rimuovere questa fascia solo oggi"`:`title="${escAttr(m2t(b.start)+'–'+m2t(b.end))}"`}>
+          <span>${m2t(b.start)}–${m2t(b.end)}</span></div>`).join('')}
+        ${busy.map(g=>`<div class="tl-busy" style="left:${pct(g.start_min)}%;width:${(g.end_min-g.start_min)/span*100}%" title="Non disponibile ${escAttr(m2t(g.start_min)+'–'+m2t(g.end_min))}"></div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
+  const now=new Date();const nowMin=now.getHours()*60+now.getMinutes();
+  const showNow=sameDay(d,t)&&nowMin>=lo&&nowMin<=hi;
+
+  return `
+  <div class="cal-bar">
+    <button class="btn sm ghost" onclick="openDay('${isoD(addDays(d,-1))}')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="cal-title"><b style="font-size:17px">${fmtDLong(d)}</b><span class="email-cell">${sameDay(d,t)?'oggi · ':''}${members.filter(m=>effectiveBlocks(m.id,iso).length).length} disponibili su ${members.length}</span></div>
+    <button class="btn sm ghost" onclick="openDay('${isoD(addDays(d,1))}')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+    <button class="btn sm" onclick="closeDay()">← Settimana</button>
+  </div>
+  <div class="card tl-card">
+    <div class="tl-head">
+      <div class="tl-who"></div>
+      <div class="tl-track tl-axis">
+        ${hours.map(h=>`<div class="tl-hlbl" style="left:${pct(h*60)}%">${String(h).padStart(2,'0')}</div>`).join('')}
+        ${showNow?`<div class="tl-now" style="left:${pct(nowMin)}%"><span></span></div>`:''}
+      </div>
+    </div>
+    ${rows||'<div class="cal-empty" style="padding:20px">Nessun collaboratore</div>'}
+  </div>
+  <div class="cal-legend">
+    <span class="cal-leg"><span class="tl-lg-block"></span>Disponibile</span>
+    <span class="cal-leg"><span class="tl-lg-busy"></span>Impegno da calendario (non disponibile)</span>
+    <span class="cal-leg" style="margin-left:auto;color:var(--faint)">Clicca una tua fascia per rimuoverla solo oggi</span>
+  </div>`;
 }
 
 /* ---- vista: la mia disponibilità ---- */
@@ -1752,9 +1909,9 @@ function viewMiaDispo(){
   const weekEditor=[1,2,3,4,5,6,7].map(wd=>{
     const rs=rulesByDay(wd);
     return `<div class="mp-day">
-      <div class="mp-dname">${WD_NAMES[wd]}</div>
+      <div class="mp-dname">${WD_NAMES[wd]}${rs.length?`<button class="mp-clear" onclick="clearDay(${wd})" title="Svuota il giorno">svuota</button>`:''}</div>
       <div class="mp-blocks">
-        ${rs.length?rs.map(r=>`<span class="sh-chip edit">${m2t(r.start_min)}–${m2t(r.end_min)}<button onclick="delItem('${r.id}')" title="Rimuovi">✕</button></span>`).join(''):'<span class="mp-none">nessuna fascia</span>'}
+        ${rs.length?rs.map(r=>`<span class="sh-chip edit"><button class="chip-t" onclick="editRule('${r.id}')" title="Modifica orario">${m2t(r.start_min)}–${m2t(r.end_min)}</button><button onclick="delItem('${r.id}')" title="Rimuovi">✕</button></span>`).join(''):'<span class="mp-none">nessuna fascia</span>'}
       </div>
       <div class="mp-add">
         <input type="time" id="rb-s-${wd}" value="09:00"><span>–</span><input type="time" id="rb-e-${wd}" value="13:00">
@@ -1773,12 +1930,14 @@ function viewMiaDispo(){
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
       <span class="chip ${m.gcal?'reply':'da'}"><span class="d"></span>${m.gcal?'Google Calendar attivo':'Google Calendar non collegato'}</span>
-      ${m.gcal?`<span class="email-cell">${myGcal} eventi sincronizzati</span><button class="btn sm" onclick="syncGcal()">Sincronizza ora</button>`:`<button class="btn sm" onclick="enableGcal()">Collega il mio calendario</button>`}
+      ${m.gcal?`<span class="email-cell">${myGcal} impegni importati</span><button class="btn sm" onclick="syncGcal()">Sincronizza ora</button><button class="btn sm ghost danger" onclick="disableGcal()">Scollega</button>`:`<button class="btn sm" onclick="enableGcal()">Collega il mio calendario</button>`}
     </div>
+    ${m.gcal?`<div class="helptip" style="margin-top:8px">Privacy: agli altri compaiono <b>solo gli orari</b> in cui non sei disponibile. Il nome degli eventi non viene mai letto né mostrato.</div>`:''}
   </div>
 
   <div class="section-h" style="margin-top:0"><h3>Disponibilità settimanale ricorrente</h3><div class="line"></div>
-    <button class="btn sm" onclick="presetStandard()">Preset Lun–Ven 9–13, 15–19</button></div>
+    <button class="btn sm" onclick="presetStandard()">Preset Lun–Ven 9–13, 15–19</button>
+    <button class="btn sm ghost danger" onclick="clearWeek()">Svuota tutto</button></div>
   <div class="card" style="padding:6px 14px">${weekEditor}</div>
 
   <div class="section-h"><h3>Eccezioni (giorni specifici)</h3><div class="line"></div></div>
