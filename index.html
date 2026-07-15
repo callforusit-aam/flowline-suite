@@ -1576,20 +1576,39 @@ function shiftsSubscribe(){
 function refreshShifts(){shiftsLoad();const m=me();if(m&&m.gcal)syncGcal();}
 
 async function saveMe(){
-  if(!supaReady()){toast('Database non collegato','warn');return}
-  if(!googleReady()){toast('Accedi con Google per creare il profilo','warn');connectGoogle();return}
+  if(!supaReady()){toast('Database non collegato','warn');return false}
+  if(!googleReady()){toast('Accedi con Google per creare il profilo','warn');connectGoogle();return false}
   const name=(document.getElementById('me-name')?.value||'').trim();
-  if(!name){toast('Inserisci il tuo nome','warn');return}
+  if(!name){toast('Inserisci il tuo nome','warn');return false}
   const color=document.getElementById('me-color')?.value||SHIFT_COLORS[0];
   const gcalOn=document.getElementById('me-gcal')?.classList.contains('on');
-  const id=state.shifts.meId||('m'+Math.random().toString(36).slice(2,9));
-  const row={id,name,color,email:(state.google.email||'').toLowerCase(),gcal:!!gcalOn,updated_at:new Date().toISOString()};
+  const em=(state.google.email||'').toLowerCase();
+  // niente doppioni: se esiste già un profilo con questa email, aggiorno quello
+  const existing=state.shifts.members.find(x=>(x.email||'').toLowerCase()===em);
+  const id=state.shifts.meId||existing?.id||('m'+Math.random().toString(36).slice(2,9));
+  const row={id,name,color,email:em,gcal:!!gcalOn,updated_at:new Date().toISOString()};
   const {error}=await supa.from('shift_members').upsert(row,{onConflict:'id'});
-  if(error){toast('Errore profilo: '+error.message,'err');return}
+  if(error){toast('Errore profilo: '+error.message,'err');return false}
   state.shifts.meId=id;
   await shiftsLoad();
   toast('Profilo salvato','ok');
   if(gcalOn) syncGcal();
+  return true;
+}
+// rimozione profilo: elimina anche tutte le sue fasce e impegni
+async function deleteProfile(id){
+  const m=state.shifts.members.find(x=>x.id===id);if(!m)return;
+  const mine=id===state.shifts.meId;
+  if(!confirm(`Eliminare il profilo "${m.name}"${m.email?' ('+m.email+')':''}?\n\nVerranno rimosse anche tutte le sue disponibilità.${mine?'\n\nÈ il TUO profilo: dovrai ricrearlo.':''}`))return;
+  try{
+    const r1=await supa.from('shift_items').delete().eq('member_id',id);
+    if(r1.error)throw r1.error;
+    const r2=await supa.from('shift_members').delete().eq('id',id);
+    if(r2.error)throw r2.error;
+    if(mine)state.shifts.meId=null;
+    await shiftsLoad();
+    toast('Profilo eliminato','ok');
+  }catch(e){toast('Eliminazione fallita: '+e.message,'err')}
 }
 function ensureMe(){if(!state.shifts.meId){toast('Crea prima il tuo profilo','warn');state.view='miadispo';render();return false}return true}
 async function addItem(kind,extra){
@@ -1927,6 +1946,7 @@ function viewMiaDispo(){
       <span class="email-cell">${esc(m.email||'')}</span>
       <div style="flex:1"></div>
       <button class="btn sm ghost" onclick="editProfile()">Modifica profilo</button>
+      <button class="btn sm ghost danger" onclick="deleteProfile('${m.id}')">Elimina profilo</button>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
       <span class="chip ${m.gcal?'reply':'da'}"><span class="d"></span>${m.gcal?'Google Calendar attivo':'Google Calendar non collegato'}</span>
@@ -1959,6 +1979,27 @@ function viewMiaDispo(){
         <button class="btn sm ghost danger" onclick="delItem('${e.id}')">Annulla</button>
       </div>`).join('')}
     </div>`:'<div class="email-cell" style="margin-top:8px">Nessuna eccezione in programma.</div>'}
+  </div>
+
+  <div class="section-h"><h3>Profili del team</h3><span class="count">${state.shifts.members.length}</span><div class="line"></div></div>
+  <div class="card" style="padding:14px">
+    <div class="helptip" style="margin-bottom:10px">Elenco dei profili sul database. Elimina eventuali doppioni o profili non più in uso: verranno rimosse anche le loro disponibilità.</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${state.shifts.members.map(x=>{
+        const mine=x.id===m.id;
+        const nRules=state.shifts.rules.filter(r=>r.member_id===x.id).length;
+        return `<div class="ex-row">
+          <span class="sh-dot" style="background:${x.color}"></span>
+          <b>${esc(x.name)}</b>
+          ${mine?'<span class="tl-you">tu</span>':''}
+          <span class="email-cell">${esc(x.email||'— nessuna email —')}</span>
+          <span class="email-cell">${nRules} fasce</span>
+          <div style="flex:1"></div>
+          ${mine?`<button class="btn sm ghost" onclick="editProfile()">Modifica</button>`:''}
+          <button class="btn sm ghost danger" onclick="deleteProfile('${x.id}')">Elimina</button>
+        </div>`;
+      }).join('')}
+    </div>
   </div>`;
 }
 function editProfile(){
@@ -1971,9 +2012,15 @@ function editProfile(){
       <div class="form-row"><label>Colore</label><input id="me-color" type="color" value="${m.color}" style="width:60px;height:38px;padding:2px"></div>
       <label class="toggle ${m.gcal?'on':''}" id="me-gcal" onclick="this.classList.toggle('on')"><span class="sw"></span><span>Sincronizza il mio Google Calendar</span></label>
     </div>
-    <div class="modal-f"><button class="btn" onclick="this.closest('.overlay').remove()">Annulla</button><button class="btn primary" onclick="this.closest('.overlay').remove();saveMe()">Salva</button></div>
+    <div class="modal-f"><button class="btn" onclick="this.closest('.overlay').remove()">Annulla</button><button class="btn primary" onclick="saveMeFromModal(this)">Salva</button></div>
   </div>`;
   document.body.appendChild(ov);
+}
+// legge i campi MENTRE la finestra è ancora aperta, poi chiude
+async function saveMeFromModal(btn){
+  const ov=btn.closest('.overlay');
+  const ok=await saveMe();
+  if(ok!==false && ov) ov.remove();
 }
 function enableGcal(){
   if(!googleReady()){toast('Prima connetti Google (Impostazioni)','warn');connectGoogle();return}
