@@ -406,8 +406,25 @@ textarea.body{min-height:150px;line-height:1.55;white-space:pre-wrap;font-size:1
 
 <script>
 /* ============================================================
-   FlowLine Outbound Manager — single file
+   FlowLine Suite — single file
    ============================================================ */
+
+/* ┌──────────────────────────────────────────────────────────┐
+   │  CONFIGURAZIONE TEAM — compila QUI una volta sola.        │
+   │  Così ogni collaboratore apre il link e trova tutto       │
+   │  pronto: nessuna chiave da incollare.                     │
+   │  (URL e chiavi qui sotto sono pubbliche per progetto:     │
+   │   la anon key di Supabase e il Client ID Google sono      │
+   │   pensati per stare nel browser.)                         │
+   └──────────────────────────────────────────────────────────┘ */
+const APP_DEFAULTS = {
+  supabaseUrl:    '',   // es. 'https://xxxx.supabase.co'
+  supabaseKey:    '',   // anon public key  'eyJhbGci...'
+  googleClientId: '',   // 'xxxxx.apps.googleusercontent.com'
+};
+/* La chiave Anthropic NON va qui: è personale e a consumo.
+   Resta nelle Impostazioni del singolo (serve solo per l'Outbound). */
+
 const LS = {
   config:'flo_config', contacts:'flo_contacts', cadence:'flo_cadence',
   templates:'flo_templates', theme:'flo_theme', usage:'flo_usage', gauth:'flo_gauth'
@@ -459,8 +476,12 @@ let state = {
   module: load('flo_module','outbound'),
   google: load(LS.gauth, {token:null, email:null, expires:0}),
   filter: 'tutti', search:'',
-  shifts: {members:[], rules:[], exceptions:[], gcal:[], meId:load('flo_me',null), week:0, view:'griglia', needsSetup:false},
+  shifts: {members:[], rules:[], exceptions:[], gcal:[], meId:null, week:0, view:'griglia', needsSetup:false},
 };
+// i valori del team valgono se il singolo non ne ha di propri
+if(!state.config.supabaseUrl && APP_DEFAULTS.supabaseUrl) state.config.supabaseUrl=APP_DEFAULTS.supabaseUrl;
+if(!state.config.supabaseKey && APP_DEFAULTS.supabaseKey) state.config.supabaseKey=APP_DEFAULTS.supabaseKey;
+if(!state.config.googleClientId && APP_DEFAULTS.googleClientId) state.config.googleClientId=APP_DEFAULTS.googleClientId;
 if(state.config.eurRate==null) state.config.eurRate=EUR_DEFAULT;
 if(state.config.autoSync==null) state.config.autoSync=true;
 if(state.config.autoSyncSec==null) state.config.autoSyncSec=60;
@@ -613,6 +634,33 @@ function reauthGoogle(){
   toast('Riautorizza e concedi TUTTI i permessi richiesti','warn');
   connectGoogle(true);
 }
+function logoutGoogle(){
+  if(!confirm('Uscire dall\'account Google? I turni restano salvati sul database.'))return;
+  try{if(state.google.token&&google?.accounts?.oauth2)google.accounts.oauth2.revoke(state.google.token,()=>{});}catch(e){}
+  state.google={token:null,email:null,expires:0};saveGAuth();
+  state.shifts.meId=null;stopReplyPoll();
+  closeModal();render();toast('Disconnesso','ok');
+}
+// genera il blocco da incollare in cima al file: così il team non configura nulla
+function exportTeamConfig(){
+  const cfg=`const APP_DEFAULTS = {
+  supabaseUrl:    '${state.config.supabaseUrl}',
+  supabaseKey:    '${state.config.supabaseKey}',
+  googleClientId: '${state.config.googleClientId}',
+};`;
+  const ov=document.createElement('div');ov.className='overlay';ov.style.zIndex='60';ov.onclick=e=>{if(e.target===ov)ov.remove()};
+  ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-h"><h3>Configurazione per il team</h3><div class="x" onclick="this.closest('.overlay').remove()">✕</div></div>
+    <div class="modal-b">
+      <div class="helptip">Copia questo blocco e sostituisci <code>APP_DEFAULTS</code> in cima al file <code>index.html</code>, poi ricarica su GitHub Pages. Da quel momento chi apre il link trova tutto già configurato: dovrà solo accedere con Google.</div>
+      <textarea class="body" style="min-height:150px;font-family:'JetBrains Mono',monospace;font-size:12px" readonly>${esc(cfg)}</textarea>
+      <button class="btn sm" onclick="navigator.clipboard.writeText(this.previousElementSibling.value).then(()=>toast('Configurazione copiata','ok'))">Copia</button>
+      <div class="helptip">Nota: la anon key di Supabase e il Client ID Google sono progettati per stare nel browser, quindi possono comparire nel file. La chiave Anthropic <b>no</b>: resta personale nelle Impostazioni.</div>
+    </div>
+    <div class="modal-f"><button class="btn primary" onclick="this.closest('.overlay').remove()">Chiudi</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+}
 // rinnovo silenzioso: nessun popup se la sessione Google è attiva e il consenso è già stato dato
 function refreshToken(){
   if(!tokenClient){initGoogle();}
@@ -627,7 +675,16 @@ async function afterGoogleAuth(){
     renderConn(); render();
     startReplyPoll();
     if(!state.config.testMode) setTimeout(()=>checkReplies({silent:true}),1500);
+    shiftsLoad().then(bindMe);
   }catch(e){toast('Errore profilo Gmail','err')}
+}
+// l'identità è l'account Google: ritrovo il profilo turni ovunque, senza password
+function bindMe(){
+  const em=(state.google.email||'').toLowerCase();
+  if(!em)return;
+  const found=state.shifts.members.find(m=>(m.email||'').toLowerCase()===em);
+  state.shifts.meId=found?found.id:null;
+  if(state.module==='shifts')render();
 }
 async function gfetch(url,opts={}){
   if(!googleReady()){ // prova un refresh silenzioso al volo
@@ -1465,6 +1522,9 @@ async function shiftsLoad(){
     state.shifts.rules=items.filter(x=>x.kind==='rule');
     state.shifts.exceptions=items.filter(x=>x.kind==='off'||x.kind==='extra');
     state.shifts.gcal=items.filter(x=>x.kind==='gcal');
+    // riaggancio il profilo all'account Google connesso
+    const em=(state.google.email||'').toLowerCase();
+    if(em){const f=state.shifts.members.find(m=>(m.email||'').toLowerCase()===em);state.shifts.meId=f?f.id:null;}
     if(state.module==='shifts')render();
   }catch(e){
     if(/relation|does not exist|Could not find|schema cache/i.test(e.message||'')){state.shifts.needsSetup=true;if(state.module==='shifts')render();}
@@ -1483,16 +1543,17 @@ function shiftsSubscribe(){
 function refreshShifts(){shiftsLoad();const m=me();if(m&&m.gcal)syncGcal();}
 
 async function saveMe(){
-  if(!supaReady()){toast('Collega Supabase per usare i turni','warn');return}
+  if(!supaReady()){toast('Database non collegato','warn');return}
+  if(!googleReady()){toast('Accedi con Google per creare il profilo','warn');connectGoogle();return}
   const name=(document.getElementById('me-name')?.value||'').trim();
   if(!name){toast('Inserisci il tuo nome','warn');return}
   const color=document.getElementById('me-color')?.value||SHIFT_COLORS[0];
   const gcalOn=document.getElementById('me-gcal')?.classList.contains('on');
   const id=state.shifts.meId||('m'+Math.random().toString(36).slice(2,9));
-  const row={id,name,color,email:state.google.email||null,gcal:!!gcalOn,updated_at:new Date().toISOString()};
+  const row={id,name,color,email:(state.google.email||'').toLowerCase(),gcal:!!gcalOn,updated_at:new Date().toISOString()};
   const {error}=await supa.from('shift_members').upsert(row,{onConflict:'id'});
   if(error){toast('Errore profilo: '+error.message,'err');return}
-  state.shifts.meId=id;save('flo_me',id);
+  state.shifts.meId=id;
   await shiftsLoad();
   toast('Profilo salvato','ok');
   if(gcalOn) syncGcal();
@@ -1606,13 +1667,26 @@ function renderShifts(){
   const ta=document.getElementById('topActions');
   ta.innerHTML=`<button class="btn sm ghost" onclick="refreshShifts()" title="Aggiorna"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Aggiorna</button>`;
   const C=document.getElementById('content');
-  if(!supaReady()){C.innerHTML=`<div class="empty"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 8v4 M12 16h.01"/></svg><h4>Serve Supabase</h4><p>Il modulo Turni usa il database condiviso. Collega Supabase nelle Impostazioni per iniziare.</p><button class="btn primary" onclick="openSettings()">Apri impostazioni</button></div>`;return;}
+  if(!supaReady()){C.innerHTML=`<div class="empty"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 8v4 M12 16h.01"/></svg><h4>Database non raggiungibile</h4><p>${APP_DEFAULTS.supabaseUrl?'Connessione al database in corso… se il problema resta, avvisa Giuseppe.':'La suite non è ancora configurata. Vai in Impostazioni e collega Supabase.'}</p><button class="btn primary" onclick="openSettings()">Apri impostazioni</button></div>`;return;}
   if(state.shifts.needsSetup){C.innerHTML=`<div class="empty"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18"/></svg>
     <h4>Configura le tabelle dei turni</h4>
     <p>Manca lo schema sul database. Esegui una volta l'SQL nel <b>SQL Editor</b> di Supabase, poi ricontrolla.</p>
     <button class="btn primary" onclick="showShiftsSQL()">Mostra SQL turni</button>
     <div style="margin-top:10px"><button class="btn sm ghost" onclick="shiftsLoad()">Ho eseguito l'SQL — ricontrolla</button></div></div>`;return;}
+  if(!googleReady()){C.innerHTML=viewLogin();return;}
   C.innerHTML = state.view==='miadispo'?viewMiaDispo():viewGriglia();
+}
+function viewLogin(){
+  return `<div class="empty" style="padding-top:60px">
+    <div style="width:54px;height:54px;border-radius:14px;margin:0 auto 18px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center">
+      <svg style="width:28px;height:28px" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18"/></svg>
+    </div>
+    <h4 style="font-size:17px">Accedi per vedere i turni</h4>
+    <p>Usa il tuo account Google FlowLine. I tuoi turni ti seguono su qualsiasi dispositivo: nessuna password, nessuna configurazione.</p>
+    <button class="btn primary" onclick="connectGoogle(true)">
+      <svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12 11v2.6h6.2c-.2 1.6-1.8 4.7-6.2 4.7-3.7 0-6.8-3.1-6.8-6.9S8.3 4.5 12 4.5c2.1 0 3.6.9 4.4 1.7l3-2.9C17.5 1.5 15 .5 12 .5 5.7.5.6 5.6.6 12S5.7 23.5 12 23.5c6.6 0 11-4.6 11-11.2 0-.8-.1-1.3-.2-1.9H12z"/></svg>
+      Accedi con Google</button>
+  </div>`;
 }
 
 /* ---- vista: griglia turni team ---- */
@@ -1663,8 +1737,10 @@ function viewGriglia(){
 function viewMiaDispo(){
   const m=me();
   if(!m){
-    return `<div class="card" style="max-width:520px;padding:20px"><div class="section-h" style="margin-top:0"><h3>Crea il tuo profilo</h3><div class="line"></div></div>
-      <div class="form-row"><label>Nome</label><input id="me-name" value="${escAttr((state.google.email||'').split('@')[0])}" placeholder="Es. Giuseppe"></div>
+    const guess=(state.google.email||'').split('@')[0].replace(/[._-]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+    return `<div class="card" style="max-width:520px;padding:20px"><div class="section-h" style="margin-top:0"><h3>Benvenuto — crea il tuo profilo</h3><div class="line"></div></div>
+      <div class="helptip" style="margin-bottom:12px">Accesso effettuato come <b>${esc(state.google.email||'')}</b>. Il profilo resta legato a questo account: lo ritrovi da qualsiasi dispositivo.</div>
+      <div class="form-row"><label>Nome visualizzato</label><input id="me-name" value="${escAttr(guess)}" placeholder="Es. Giuseppe"></div>
       <div class="form-row"><label>Colore</label><input id="me-color" type="color" value="${SHIFT_COLORS[state.shifts.members.length%SHIFT_COLORS.length]}" style="width:60px;height:38px;padding:2px"></div>
       <label class="toggle" id="me-gcal" onclick="this.classList.toggle('on')"><span class="sw"></span><span>Sincronizza il mio Google Calendar (facoltativo)</span></label>
       <div style="margin-top:14px"><button class="btn primary" onclick="saveMe()">Crea profilo</button></div></div>`;
@@ -2379,7 +2455,8 @@ function openSettings(){
         <span class="hint">Da Google Cloud Console → Credenziali → ID client OAuth (tipo: Web). Aggiungi l'origine del tuo sito GitHub Pages tra le origini JavaScript autorizzate.</span></div>
       <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
         <button class="btn sm" onclick="saveGid()">${googleReady()?'Riconnetti':'Connetti Google'}</button>
-        ${googleReady()?`<button class="btn sm ghost" onclick="reauthGoogle()" title="Richiede di nuovo il consenso: serve dopo aver aggiunto nuovi permessi (es. calendario)">Riautorizza permessi</button>`:''}
+        ${googleReady()?`<button class="btn sm ghost" onclick="reauthGoogle()" title="Richiede di nuovo il consenso: serve dopo aver aggiunto nuovi permessi (es. calendario)">Riautorizza permessi</button>
+        <button class="btn sm ghost danger" onclick="logoutGoogle()">Esci</button>`:''}
         ${googleReady()?`<span class="chip reply"><span class="d"></span>${esc(state.google.email||'connesso')}</span>`:''}
       </div>
       <div class="helptip">Google serve solo per <b>inviare le email</b> e rilevare le risposte via Gmail. La sorgente dei contatti è Supabase (sotto).</div>
@@ -2394,6 +2471,7 @@ function openSettings(){
         ${supaReady()?`<span class="chip reply"><span class="d"></span>Database connesso</span>`:`<span class="chip da"><span class="d"></span>Non connesso</span>`}
         <button class="btn sm" onclick="supaLoad()">Ricarica dal database</button>
         <button class="btn sm ghost" onclick="showSupaSQL()">Mostra SQL di setup</button>
+        <button class="btn sm ghost" onclick="exportTeamConfig()" title="Genera il blocco da incollare nel file per il team">Configurazione team</button>
         ${cf.supabaseUrl?`<button class="btn sm ghost" onclick="window.open('${escAttr(cf.supabaseUrl)}','_blank')">Apri Supabase</button>`:''}
       </div>
       <div class="form-row" style="margin-top:4px"><label>Migrazione una-tantum dal vecchio Google Sheet <span class="hint">(legge il foglio col tuo login Google e copia i contatti su Supabase; il foglio non resta collegato)</span></label>
