@@ -601,11 +601,17 @@ function initGoogle(){
     });
   }catch(e){console.error(e)}
 }
-function connectGoogle(){
+function connectGoogle(force){
   if(!state.config.googleClientId){openSettings();toast('Inserisci prima il Client ID Google','warn');return}
   if(!tokenClient) initGoogle();
   if(!tokenClient){toast('Google Identity non caricato, riprova','err');return}
-  tokenClient.requestAccessToken({prompt: state.google.email?'':'consent'});
+  // force=true -> richiede di nuovo il consenso: serve quando si aggiungono nuovi permessi (es. calendario)
+  tokenClient.requestAccessToken({prompt: (force||!state.google.email)?'consent':''});
+}
+function reauthGoogle(){
+  state.google.token=null;state.google.expires=0;saveGAuth();
+  toast('Riautorizza e concedi TUTTI i permessi richiesti','warn');
+  connectGoogle(true);
 }
 // rinnovo silenzioso: nessun popup se la sessione Google è attiva e il consenso è già stato dato
 function refreshToken(){
@@ -1544,7 +1550,12 @@ async function syncGcal(){
     if(rows.length){const {error}=await supa.from('shift_items').insert(rows);if(error)throw error;}
     await shiftsLoad();
     toast(rows.length+' eventi dal Google Calendar sincronizzati','ok');
-  }catch(e){toast('Sync calendario: '+e.message,'err')}
+  }catch(e){
+    if(/insufficient authentication scopes|403|Insufficient Permission/i.test(e.message||'')){
+      toast('Permesso calendario mancante: riautorizza Google','err');
+      if(confirm('Il permesso per il Google Calendar non è ancora stato concesso.\n\n1) Su Google Cloud aggiungi lo scope calendar.readonly (Auth Platform → Accesso ai dati)\n2) Riautorizza qui concedendo TUTTI i permessi\n\nRiautorizzare ora?')) reauthGoogle();
+    } else toast('Sync calendario: '+e.message,'err');
+  }
 }
 
 const SHIFTS_SQL=`-- Tabelle del modulo Turni (esegui una volta)
@@ -2368,6 +2379,7 @@ function openSettings(){
         <span class="hint">Da Google Cloud Console → Credenziali → ID client OAuth (tipo: Web). Aggiungi l'origine del tuo sito GitHub Pages tra le origini JavaScript autorizzate.</span></div>
       <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
         <button class="btn sm" onclick="saveGid()">${googleReady()?'Riconnetti':'Connetti Google'}</button>
+        ${googleReady()?`<button class="btn sm ghost" onclick="reauthGoogle()" title="Richiede di nuovo il consenso: serve dopo aver aggiunto nuovi permessi (es. calendario)">Riautorizza permessi</button>`:''}
         ${googleReady()?`<span class="chip reply"><span class="d"></span>${esc(state.google.email||'connesso')}</span>`:''}
       </div>
       <div class="helptip">Google serve solo per <b>inviare le email</b> e rilevare le risposte via Gmail. La sorgente dei contatti è Supabase (sotto).</div>
