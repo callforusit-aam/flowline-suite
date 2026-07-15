@@ -217,6 +217,12 @@ textarea.body{min-height:150px;line-height:1.55;white-space:pre-wrap;font-size:1
 .ex-add input,.ex-add select{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:13px}
 .ex-whole{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
 .ex-row{display:flex;align-items:center;gap:10px;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px}
+.cal-pick{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px}
+.cal-pick:hover{background:var(--surface-2)}
+.cal-pick input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+.cal-sw{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.cal-nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-role{font-size:10.5px;color:var(--faint);white-space:nowrap}
 /* editing avanzato */
 .sh-chip.edit .chip-t{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--text);padding:0}
 .sh-chip.edit .chip-t:hover{color:var(--accent);text-decoration:underline}
@@ -1734,42 +1740,105 @@ function addExceptionUI(){
   addItem(type,{date,start_min:t2m(s),end_min:t2m(e)});
 }
 
+// elenco di TUTTI i calendari collegati all'account
+async function listCalendars(){
+  const r=await gfetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=freeBusyReader&maxResults=250');
+  return (r.items||[]).filter(c=>!c.deleted);
+}
+function chosenCals(){return load('flo_cals',null)}   // null = tutti quelli attivi su Google
+// spezza un impegno in segmenti giornalieri (gestisce eventi oltre la mezzanotte)
+function busyToSegments(startISO,endISO){
+  const s=new Date(startISO), e=new Date(endISO);
+  const segs=[];
+  let cur=new Date(s.getFullYear(),s.getMonth(),s.getDate());
+  let guard=0;
+  while(cur<=e && guard++<40){
+    const dayStart=new Date(cur), dayEnd=new Date(cur); dayEnd.setDate(dayEnd.getDate()+1);
+    const a=Math.max(s.getTime(),dayStart.getTime()), b=Math.min(e.getTime(),dayEnd.getTime());
+    if(b>a){
+      const sm=Math.round((a-dayStart.getTime())/60000);
+      const em=Math.round((b-dayStart.getTime())/60000);
+      if(em>sm) segs.push({date:isoD(dayStart),start_min:sm,end_min:Math.min(em,24*60)});
+    }
+    cur.setDate(cur.getDate()+1);
+  }
+  return segs;
+}
 async function syncGcal(opts={}){
   if(!state.shifts.meId){if(!opts.repair)toast('Crea prima il profilo','warn');return}
   if(!googleReady()){if(!opts.repair){toast('Connetti Google per il calendario','warn');connectGoogle();}return}
   try{
-    const tMin=startOfWeek(addDays(today(),-7)).toISOString();
-    const tMax=addDays(startOfWeek(today()),42).toISOString();
-    const url='https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=250&timeMin='+encodeURIComponent(tMin)+'&timeMax='+encodeURIComponent(tMax);
-    const r=await gfetch(url);
-    const evs=(r.items||[]).filter(e=>{
-      if(!(e.start&&e.start.dateTime&&e.end&&e.end.dateTime))return false;  // niente eventi "tutto il giorno"
-      if(e.transparency==='transparent')return false;                        // su Google è segnato "Libero"
-      if(e.status==='cancelled')return false;
-      const self=(e.attendees||[]).find(a=>a.self);
-      if(self&&self.responseStatus==='declined')return false;                // invito rifiutato: sei libero
-      return true;
-    });
-    await supa.from('shift_items').delete().eq('member_id',state.shifts.meId).eq('kind','gcal');
+    // 1) quali calendari leggere
+    const all=await listCalendars();
+    const sel=chosenCals();
+    const use=all.filter(c=> sel? sel.includes(c.id) : c.selected!==false);
+    if(!use.length){toast('Nessun calendario selezionato','warn');return}
+    // 2) FreeBusy: legge TUTTI i calendari scelti e torna solo le fasce occupate (nessun dettaglio)
+    const tMin=startOfWeek(addDays(today(),-7)), tMax=addDays(startOfWeek(today()),42);
+    const busyAll=[];
+    for(let i=0;i<use.length;i+=45){                       // il limite è 50 calendari per richiesta
+      const chunk=use.slice(i,i+45);
+      const r=await gfetch('https://www.googleapis.com/calendar/v3/freeBusy',{method:'POST',body:JSON.stringify({
+        timeMin:tMin.toISOString(), timeMax:tMax.toISOString(),
+        items:chunk.map(c=>({id:c.id}))
+      })});
+      Object.values(r.calendars||{}).forEach(c=>(c.busy||[]).forEach(b=>busyAll.push(b)));
+    }
+    // 3) in segmenti giornalieri, poi fondo le sovrapposizioni tra calendari diversi
+    const byDay={};
+    busyAll.forEach(b=>busyToSegments(b.start,b.end).forEach(sg=>{(byDay[sg.date]=byDay[sg.date]||[]).push({start:sg.start_min,end:sg.end_min})}));
     const rows=[];
-    evs.forEach(e=>{
-      const s=new Date(e.start.dateTime), en=new Date(e.end.dateTime);
-      const day0=new Date(s.getFullYear(),s.getMonth(),s.getDate());
-      const sameDayEnd=en.getFullYear()===s.getFullYear()&&en.getMonth()===s.getMonth()&&en.getDate()===s.getDate();
-      const startMin=s.getHours()*60+s.getMinutes();
-      const endMin=sameDayEnd?(en.getHours()*60+en.getMinutes()):24*60; // evento oltre mezzanotte: chiudo a fine giornata
-      if(endMin<=startMin)return;
-      rows.push(siItem('gcal',{date:isoD(day0),start_min:startMin,end_min:endMin,title:null}));
-    });
+    Object.keys(byDay).forEach(dt=>mergeBlocks(byDay[dt]).forEach(b=>rows.push(siItem('gcal',{date:dt,start_min:b.start,end_min:b.end,title:null}))));
+    // 4) riscrivo
+    await supa.from('shift_items').delete().eq('member_id',state.shifts.meId).eq('kind','gcal');
     if(rows.length){const {error}=await supa.from('shift_items').insert(rows);if(error)throw error;}
     await shiftsLoad();
-    toast(opts.repair?`Calendario riallineato · ${rows.length} impegni`:`${rows.length} impegni sincronizzati dal calendario`,'ok');
+    toast(`${rows.length} impegni da ${use.length} calendar${use.length>1?'i':'io'}`,'ok');
   }catch(e){
     if(/insufficient authentication scopes|403|Insufficient Permission/i.test(e.message||'')){
       toast('Permesso calendario mancante: riautorizza Google','err');
       if(confirm('Il permesso per il Google Calendar non è ancora stato concesso.\n\n1) Su Google Cloud aggiungi lo scope calendar.readonly (Auth Platform → Accesso ai dati)\n2) Riautorizza qui concedendo TUTTI i permessi\n\nRiautorizzare ora?')) reauthGoogle();
     } else toast('Sync calendario: '+e.message,'err');
   }
+}
+// scelta dei calendari da includere
+async function pickCalendars(){
+  if(!googleReady()){toast('Connetti Google','warn');return}
+  let all;
+  try{ all=await listCalendars(); }catch(e){toast('Lettura calendari: '+e.message,'err');return}
+  const sel=chosenCals();
+  const isOn=c=> sel? sel.includes(c.id) : c.selected!==false;
+  const ov=document.createElement('div');ov.className='overlay';ov.style.zIndex='60';ov.onclick=e=>{if(e.target===ov)ov.remove()};
+  ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-h"><h3>Calendari da includere</h3><div class="x" onclick="this.closest('.overlay').remove()">✕</div></div>
+    <div class="modal-b">
+      <div class="helptip">Vengono lette solo le <b>fasce occupate</b>, mai i dettagli degli eventi. Sono inclusi anche i calendari di cui non vedi il contenuto.</div>
+      <div style="display:flex;flex-direction:column;gap:4px;max-height:340px;overflow:auto">
+        ${all.map(c=>`<label class="cal-pick">
+          <input type="checkbox" data-cal="${escAttr(c.id)}" ${isOn(c)?'checked':''}>
+          <span class="cal-sw" style="background:${c.backgroundColor||'var(--accent)'}"></span>
+          <span class="cal-nm">${esc(c.summary||c.id)}${c.primary?' <b>(principale)</b>':''}</span>
+          <span class="cal-role">${c.accessRole==='freeBusyReader'?'solo libero/occupato':''}</span>
+        </label>`).join('')}
+      </div>
+    </div>
+    <div class="modal-f" style="justify-content:space-between">
+      <button class="btn sm ghost" onclick="this.closest('.overlay').querySelectorAll('input[data-cal]').forEach(i=>i.checked=true)">Seleziona tutti</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="this.closest('.overlay').remove()">Annulla</button>
+        <button class="btn primary" onclick="saveCals(this)">Salva e sincronizza</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function saveCals(btn){
+  const ov=btn.closest('.overlay');
+  const ids=[...ov.querySelectorAll('input[data-cal]')].filter(i=>i.checked).map(i=>i.dataset.cal);
+  if(!ids.length){toast('Seleziona almeno un calendario','warn');return}
+  save('flo_cals',ids);
+  ov.remove();
+  syncGcal();
 }
 
 const SHIFTS_SQL=`-- Tabelle del modulo Turni (esegui una volta)
@@ -2013,9 +2082,9 @@ function viewMiaDispo(){
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
       <span class="chip ${m.gcal?'reply':'da'}"><span class="d"></span>${m.gcal?'Google Calendar attivo':'Google Calendar non collegato'}</span>
-      ${m.gcal?`<span class="email-cell">${myGcal} impegni importati</span><button class="btn sm" onclick="syncGcal()">Sincronizza ora</button><button class="btn sm ghost danger" onclick="disableGcal()">Scollega</button>`:`<button class="btn sm" onclick="enableGcal()">Collega il mio calendario</button>`}
+      ${m.gcal?`<span class="email-cell">${myGcal} impegni importati</span><button class="btn sm" onclick="syncGcal()">Sincronizza ora</button><button class="btn sm ghost" onclick="pickCalendars()">Scegli calendari</button><button class="btn sm ghost danger" onclick="disableGcal()">Scollega</button>`:`<button class="btn sm" onclick="enableGcal()">Collega il mio calendario</button>`}
     </div>
-    ${m.gcal?`<div class="helptip" style="margin-top:8px">Privacy: agli altri compaiono <b>solo gli orari</b> in cui non sei disponibile. Il nome degli eventi non viene mai letto né mostrato.</div>`:''}
+    ${m.gcal?`<div class="helptip" style="margin-top:8px">Vengono letti <b>tutti i calendari</b> del tuo account (anche quelli condivisi da altri) tramite libero/occupato: agli altri compaiono <b>solo gli orari</b> in cui non sei disponibile, mai il nome degli eventi.</div>`:''}
   </div>
 
   <div class="section-h" style="margin-top:0"><h3>Disponibilità settimanale ricorrente</h3><div class="line"></div>
