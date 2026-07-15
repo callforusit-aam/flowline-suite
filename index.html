@@ -735,6 +735,12 @@ function bindMe(){
   const found=state.shifts.members.find(m=>(m.email||'').toLowerCase()===em);
   state.shifts.meId=found?found.id:null;
   if(state.module==='shifts')render();
+  // gli eventi salvati prima della correzione del fuso orario sono di un giorno indietro:
+  // li riscrivo una volta sola, in automatico
+  if(found && found.gcal && !load('flo_tzfix',false)){
+    save('flo_tzfix',true);
+    setTimeout(()=>syncGcal({repair:true}),1200);
+  }
 }
 async function gfetch(url,opts={}){
   if(!googleReady()){ // prova un refresh silenzioso al volo
@@ -1728,21 +1734,36 @@ function addExceptionUI(){
   addItem(type,{date,start_min:t2m(s),end_min:t2m(e)});
 }
 
-async function syncGcal(){
-  if(!state.shifts.meId){toast('Crea prima il profilo','warn');return}
-  if(!googleReady()){toast('Connetti Google per il calendario','warn');connectGoogle();return}
+async function syncGcal(opts={}){
+  if(!state.shifts.meId){if(!opts.repair)toast('Crea prima il profilo','warn');return}
+  if(!googleReady()){if(!opts.repair){toast('Connetti Google per il calendario','warn');connectGoogle();}return}
   try{
     const tMin=startOfWeek(addDays(today(),-7)).toISOString();
     const tMax=addDays(startOfWeek(today()),42).toISOString();
     const url='https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=250&timeMin='+encodeURIComponent(tMin)+'&timeMax='+encodeURIComponent(tMax);
     const r=await gfetch(url);
-    const evs=(r.items||[]).filter(e=>e.start&&e.start.dateTime&&e.end&&e.end.dateTime);
+    const evs=(r.items||[]).filter(e=>{
+      if(!(e.start&&e.start.dateTime&&e.end&&e.end.dateTime))return false;  // niente eventi "tutto il giorno"
+      if(e.transparency==='transparent')return false;                        // su Google è segnato "Libero"
+      if(e.status==='cancelled')return false;
+      const self=(e.attendees||[]).find(a=>a.self);
+      if(self&&self.responseStatus==='declined')return false;                // invito rifiutato: sei libero
+      return true;
+    });
     await supa.from('shift_items').delete().eq('member_id',state.shifts.meId).eq('kind','gcal');
-    const rows=evs.map(e=>{const s=new Date(e.start.dateTime),en=new Date(e.end.dateTime);
-      return siItem('gcal',{date:isoD(new Date(s.getFullYear(),s.getMonth(),s.getDate())),start_min:s.getHours()*60+s.getMinutes(),end_min:en.getHours()*60+en.getMinutes(),title:null});});
+    const rows=[];
+    evs.forEach(e=>{
+      const s=new Date(e.start.dateTime), en=new Date(e.end.dateTime);
+      const day0=new Date(s.getFullYear(),s.getMonth(),s.getDate());
+      const sameDayEnd=en.getFullYear()===s.getFullYear()&&en.getMonth()===s.getMonth()&&en.getDate()===s.getDate();
+      const startMin=s.getHours()*60+s.getMinutes();
+      const endMin=sameDayEnd?(en.getHours()*60+en.getMinutes()):24*60; // evento oltre mezzanotte: chiudo a fine giornata
+      if(endMin<=startMin)return;
+      rows.push(siItem('gcal',{date:isoD(day0),start_min:startMin,end_min:endMin,title:null}));
+    });
     if(rows.length){const {error}=await supa.from('shift_items').insert(rows);if(error)throw error;}
     await shiftsLoad();
-    toast(rows.length+' eventi dal Google Calendar sincronizzati','ok');
+    toast(opts.repair?`Calendario riallineato · ${rows.length} impegni`:`${rows.length} impegni sincronizzati dal calendario`,'ok');
   }catch(e){
     if(/insufficient authentication scopes|403|Insufficient Permission/i.test(e.message||'')){
       toast('Permesso calendario mancante: riautorizza Google','err');
