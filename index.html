@@ -186,6 +186,38 @@ textarea.body{min-height:150px;line-height:1.55;white-space:pre-wrap;font-size:1
 .agenda-row .az{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .agenda-row .when{font-size:12px;color:var(--muted);white-space:nowrap}
 
+/* suite module switcher */
+.modswitch{display:flex;gap:4px;padding:8px 10px 4px}
+.modswitch button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 6px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--muted);background:var(--surface-2);border:1px solid var(--border)}
+.modswitch button svg{width:14px;height:14px}
+.modswitch button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+/* shifts */
+.sh-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;display:inline-block}
+.sh-m{display:flex;gap:7px;align-items:flex-start;padding:5px 6px;border-radius:7px}
+.sh-m:hover{background:var(--surface-2)}
+.sh-m-body{min-width:0;flex:1}
+.sh-name{font-size:12px;font-weight:600;line-height:1.3}
+.sh-blocks{display:flex;flex-wrap:wrap;gap:3px;margin-top:2px}
+.sh-chip{font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent);padding:2px 6px;border-radius:6px;white-space:nowrap;font-family:'JetBrains Mono',monospace}
+.sh-chip[onclick]{cursor:pointer}
+.sh-chip[onclick]:hover{background:var(--late-soft);color:var(--late)}
+.sh-chip.edit{display:inline-flex;align-items:center;gap:5px;background:var(--surface-2);color:var(--text)}
+.sh-chip.edit button{color:var(--faint);font-weight:700;font-size:12px}
+.sh-chip.edit button:hover{color:var(--late)}
+.sh-busy{font-size:11px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp-day{display:grid;grid-template-columns:110px 1fr auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
+.mp-day:last-child{border-bottom:none}
+.mp-dname{font-size:13px;font-weight:600}
+.mp-blocks{display:flex;flex-wrap:wrap;gap:5px}
+.mp-none{font-size:12px;color:var(--faint)}
+.mp-add{display:flex;align-items:center;gap:5px}
+.mp-add input[type=time]{background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:5px 7px;font-size:12px}
+.ex-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ex-add input,.ex-add select{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:13px}
+.ex-whole{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
+.ex-row{display:flex;align-items:center;gap:10px;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px}
+@media(max-width:840px){.mp-day{grid-template-columns:1fr;gap:6px}}
+
 /* planning */
 .load-strip{display:flex;gap:8px;align-items:stretch}
 .load-cell{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 4px;border-radius:9px}
@@ -323,8 +355,12 @@ textarea.body{min-height:150px;line-height:1.55;white-space:pre-wrap;font-size:1
       </div>
       <div>
         <h1>FlowLine</h1>
-        <div class="sub">Outbound Manager</div>
+        <div class="sub" id="brandSub">Suite</div>
       </div>
+    </div>
+    <div class="modswitch">
+      <button id="mod-outbound" onclick="setModule('outbound')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13 M22 2l-7 20-4-9-9-4 20-7z"/></svg>Outbound</button>
+      <button id="mod-shifts" onclick="setModule('shifts')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18 M8 15h3"/></svg>Turni</button>
     </div>
     <nav class="nav" id="nav"></nav>
     <div class="rail-foot">
@@ -420,8 +456,10 @@ let state = {
   templates: load(LS.templates, TEMPLATES_DEFAULT),
   usage: load(LS.usage, {input:0, output:0, gen:0, since:new Date().toISOString().slice(0,10)}),
   view: 'dashboard',
+  module: load('flo_module','outbound'),
   google: load(LS.gauth, {token:null, email:null, expires:0}),
   filter: 'tutti', search:'',
+  shifts: {members:[], rules:[], exceptions:[], gcal:[], meId:load('flo_me',null), week:0, view:'griglia', needsSetup:false},
 };
 if(state.config.eurRate==null) state.config.eurRate=EUR_DEFAULT;
 if(state.config.autoSync==null) state.config.autoSync=true;
@@ -535,7 +573,7 @@ function mkContact(o){
    GOOGLE OAUTH + GMAIL + SHEETS
    ======================================================= */
 let tokenClient=null;
-const SCOPES='https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+const SCOPES='https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.readonly';
 
 function googleReady(){return state.google.token && Date.now()<state.google.expires}
 function saveGAuth(){save(LS.gauth,{token:state.google.token,email:state.google.email,expires:state.google.expires})}
@@ -855,6 +893,7 @@ function initSupabase(){
     supa=window.supabase.createClient(state.config.supabaseUrl, state.config.supabaseKey, {auth:{persistSession:false}});
     _lastPushed=new Map();
     supaLoad().then(()=>supaSubscribe());
+    shiftsLoad().then(()=>shiftsSubscribe());
   }catch(e){console.error(e);toast('Supabase: '+e.message,'err')}
 }
 // se chiudi la pagina con un salvataggio in sospeso, lo forzo subito
@@ -1268,7 +1307,27 @@ const NAV=[
   {id:'contatti',label:'Contatti',icon:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75'},
   {id:'calendario',label:'Calendario',icon:'M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18'},
 ];
+const NAV_SHIFTS=[
+  {id:'griglia',label:'Turni team',icon:'M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18'},
+  {id:'miadispo',label:'La mia disponibilità',icon:'M12 8v4l3 3 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z'},
+];
+function setModule(m){
+  state.module=m;save('flo_module',m);
+  state.view = m==='shifts' ? (state.shifts.view||'griglia') : 'dashboard';
+  closeRail();render();
+}
 function renderNav(){
+  const outb=state.module!=='shifts';
+  const sub=document.getElementById('brandSub');if(sub)sub.textContent=outb?'Outbound Manager':'Turni & Disponibilità';
+  const mo=document.getElementById('mod-outbound'),ms=document.getElementById('mod-shifts');
+  if(mo)mo.className=outb?'':'';if(mo)mo.classList.toggle('active',outb);
+  if(ms)ms.classList.toggle('active',!outb);
+  if(!outb){
+    document.getElementById('nav').innerHTML=NAV_SHIFTS.map(n=>`<button class="${state.view===n.id?'active':''}" onclick="go('${n.id}')">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${n.icon}"/></svg>
+      <span>${n.label}</span></button>`).join('');
+    return;
+  }
   const todayN=state.contacts.filter(dueToday).length;
   const late=state.contacts.filter(isLate).length;
   const backlog=state.contacts.filter(isUnplanned).length;
@@ -1328,11 +1387,12 @@ function renderConn(){
   if(stxt){stxt.textContent=supaReady()?'Database online':(supaConfigured()?'Database in connessione…':'Database locale');}
   document.getElementById('testBanner').style.display=state.config.testMode?'flex':'none';
 }
-function go(v){state.view=v;state.search='';state.filter='tutti';closeRail();render()}
+function go(v){state.view=v;state.search='';state.filter='tutti';if(state.module==='shifts')state.shifts.view=v;closeRail();render()}
 function render(){
   renderNav();renderConn();renderSpend();
+  if(state.module==='shifts'){ renderShifts(); return; }
   const titles={dashboard:'Dashboard',pianifica:'Pianificazione',coda:'Coda invio',contatti:'Contatti',calendario:'Calendario'};
-  document.getElementById('viewTitle').textContent=titles[state.view];
+  document.getElementById('viewTitle').textContent=titles[state.view]||'Dashboard';
   const ta=document.getElementById('topActions');
   ta.innerHTML=`
       <button class="btn sm ghost" id="btnRefresh" onclick="refreshAll()" title="Aggiorna dati dal database e dal foglio">
@@ -1352,6 +1412,327 @@ function render(){
   else if(state.view==='calendario')C.innerHTML=viewCalendario();
   if(state.view==='coda')bindCodaInputs();
   if(state.view==='pianifica')bindPianifica();
+}
+
+/* =======================================================
+   MODULO TURNI / DISPONIBILITÀ
+   ======================================================= */
+const SHIFT_COLORS=['#4f46e5','#0d9488','#d97706','#dc2626','#7c3aed','#2563eb','#db2777','#65a30d'];
+const WD_NAMES=['','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
+let _shiftChan=null, _shiftLoadT=null;
+function m2t(m){if(m==null)return'';const h=Math.floor(m/60),mm=m%60;return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0')}
+function t2m(t){const p=String(t).split(':');return (+p[0]||0)*60+(+p[1]||0)}
+function isoWd(d){return ((d.getDay()+6)%7)+1} // Lun=1..Dom=7
+function me(){return state.shifts.members.find(m=>m.id===state.shifts.meId)||null}
+function siItem(kind,extra){return {id:'si'+Math.random().toString(36).slice(2,11),member_id:state.shifts.meId,kind,weekday:null,date:null,start_min:null,end_min:null,title:null,...extra,updated_at:new Date().toISOString()}}
+
+function subtractRange(blocks,off){
+  const res=[];
+  blocks.forEach(b=>{
+    if(off.start<=b.start&&off.end>=b.end)return;
+    if(off.end<=b.start||off.start>=b.end){res.push(b);return;}
+    if(off.start>b.start)res.push({start:b.start,end:off.start});
+    if(off.end<b.end)res.push({start:off.end,end:b.end});
+  });
+  return res.filter(b=>b.end>b.start);
+}
+function effectiveBlocks(memberId,iso){
+  const wd=isoWd(parseD(iso));
+  let blocks=state.shifts.rules.filter(r=>r.member_id===memberId&&r.weekday===wd).map(r=>({start:r.start_min,end:r.end_min}));
+  state.shifts.exceptions.filter(e=>e.member_id===memberId&&e.date===iso&&e.kind==='extra').forEach(e=>blocks.push({start:e.start_min,end:e.end_min}));
+  state.shifts.exceptions.filter(e=>e.member_id===memberId&&e.date===iso&&e.kind==='off').forEach(e=>{
+    if(e.start_min==null)blocks=[];else blocks=subtractRange(blocks,{start:e.start_min,end:e.end_min});
+  });
+  blocks.sort((a,b)=>a.start-b.start);
+  const merged=[];blocks.forEach(b=>{const last=merged[merged.length-1];if(last&&b.start<=last.end)last.end=Math.max(last.end,b.end);else merged.push({...b})});
+  return merged;
+}
+
+async function shiftsLoad(){
+  if(!supaReady())return;
+  try{
+    const [m,i]=await Promise.all([supa.from('shift_members').select('*'),supa.from('shift_items').select('*')]);
+    if(m.error||i.error)throw(m.error||i.error);
+    state.shifts.needsSetup=false;
+    state.shifts.members=m.data||[];
+    const items=i.data||[];
+    state.shifts.rules=items.filter(x=>x.kind==='rule');
+    state.shifts.exceptions=items.filter(x=>x.kind==='off'||x.kind==='extra');
+    state.shifts.gcal=items.filter(x=>x.kind==='gcal');
+    if(state.module==='shifts')render();
+  }catch(e){
+    if(/relation|does not exist|Could not find|schema cache/i.test(e.message||'')){state.shifts.needsSetup=true;if(state.module==='shifts')render();}
+    else console.warn('shifts load',e.message);
+  }
+}
+function shiftsLoadDebounced(){clearTimeout(_shiftLoadT);_shiftLoadT=setTimeout(shiftsLoad,300);}
+function shiftsSubscribe(){
+  if(!supa)return;
+  if(_shiftChan){supa.removeChannel(_shiftChan);_shiftChan=null;}
+  _shiftChan=supa.channel('shifts-rt')
+    .on('postgres_changes',{event:'*',schema:'public',table:'shift_members'},shiftsLoadDebounced)
+    .on('postgres_changes',{event:'*',schema:'public',table:'shift_items'},shiftsLoadDebounced)
+    .subscribe();
+}
+function refreshShifts(){shiftsLoad();const m=me();if(m&&m.gcal)syncGcal();}
+
+async function saveMe(){
+  if(!supaReady()){toast('Collega Supabase per usare i turni','warn');return}
+  const name=(document.getElementById('me-name')?.value||'').trim();
+  if(!name){toast('Inserisci il tuo nome','warn');return}
+  const color=document.getElementById('me-color')?.value||SHIFT_COLORS[0];
+  const gcalOn=document.getElementById('me-gcal')?.classList.contains('on');
+  const id=state.shifts.meId||('m'+Math.random().toString(36).slice(2,9));
+  const row={id,name,color,email:state.google.email||null,gcal:!!gcalOn,updated_at:new Date().toISOString()};
+  const {error}=await supa.from('shift_members').upsert(row,{onConflict:'id'});
+  if(error){toast('Errore profilo: '+error.message,'err');return}
+  state.shifts.meId=id;save('flo_me',id);
+  await shiftsLoad();
+  toast('Profilo salvato','ok');
+  if(gcalOn) syncGcal();
+}
+function ensureMe(){if(!state.shifts.meId){toast('Crea prima il tuo profilo','warn');state.view='miadispo';render();return false}return true}
+async function addItem(kind,extra){
+  if(!ensureMe())return;
+  const {error}=await supa.from('shift_items').insert(siItem(kind,extra));
+  if(error){toast('Errore: '+error.message,'err');return}
+  await shiftsLoad();
+}
+async function delItem(id){const {error}=await supa.from('shift_items').delete().eq('id',id);if(error)toast(error.message,'err');else await shiftsLoad();}
+function addRuleUI(wd){
+  const s=document.getElementById('rb-s-'+wd).value,e=document.getElementById('rb-e-'+wd).value;
+  if(!s||!e){toast('Imposta inizio e fine','warn');return}
+  if(t2m(e)<=t2m(s)){toast("La fine deve essere dopo l'inizio",'warn');return}
+  addItem('rule',{weekday:wd,start_min:t2m(s),end_min:t2m(e)});
+}
+async function presetStandard(){
+  if(!ensureMe())return;
+  const rows=[];for(let wd=1;wd<=5;wd++){rows.push(siItem('rule',{weekday:wd,start_min:540,end_min:780}));rows.push(siItem('rule',{weekday:wd,start_min:900,end_min:1140}));}
+  const {error}=await supa.from('shift_items').insert(rows);
+  if(error){toast(error.message,'err');return}
+  await shiftsLoad();toast('Disponibilità standard impostata (Lun–Ven 9–13, 15–19)','ok');
+}
+function offForDay(memberId,iso,start,end){
+  if(memberId!==state.shifts.meId){toast('Puoi modificare solo la tua disponibilità','warn');return}
+  if(!confirm(`Rimuovere la fascia ${m2t(start)}–${m2t(end)} solo per ${fmtDLong(parseD(iso))}?`))return;
+  addItem('off',{date:iso,start_min:start,end_min:end});
+}
+function addExceptionUI(){
+  const date=document.getElementById('ex-date').value;
+  const type=document.getElementById('ex-type').value;
+  const whole=document.getElementById('ex-whole').checked;
+  if(!date){toast('Scegli una data','warn');return}
+  if(type==='off'&&whole){addItem('off',{date});return}
+  const s=document.getElementById('ex-s').value,e=document.getElementById('ex-e').value;
+  if(!s||!e){toast("Imposta l'orario (o spunta tutto il giorno)",'warn');return}
+  if(t2m(e)<=t2m(s)){toast("La fine deve essere dopo l'inizio",'warn');return}
+  addItem(type,{date,start_min:t2m(s),end_min:t2m(e)});
+}
+
+async function syncGcal(){
+  if(!state.shifts.meId){toast('Crea prima il profilo','warn');return}
+  if(!googleReady()){toast('Connetti Google per il calendario','warn');connectGoogle();return}
+  try{
+    const tMin=startOfWeek(addDays(today(),-7)).toISOString();
+    const tMax=addDays(startOfWeek(today()),42).toISOString();
+    const url='https://www.googleapis.com/calendar/v3/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=250&timeMin='+encodeURIComponent(tMin)+'&timeMax='+encodeURIComponent(tMax);
+    const r=await gfetch(url);
+    const evs=(r.items||[]).filter(e=>e.start&&e.start.dateTime&&e.end&&e.end.dateTime);
+    await supa.from('shift_items').delete().eq('member_id',state.shifts.meId).eq('kind','gcal');
+    const rows=evs.map(e=>{const s=new Date(e.start.dateTime),en=new Date(e.end.dateTime);
+      return siItem('gcal',{date:isoD(new Date(s.getFullYear(),s.getMonth(),s.getDate())),start_min:s.getHours()*60+s.getMinutes(),end_min:en.getHours()*60+en.getMinutes(),title:(e.summary||'Impegnato').slice(0,80)});});
+    if(rows.length){const {error}=await supa.from('shift_items').insert(rows);if(error)throw error;}
+    await shiftsLoad();
+    toast(rows.length+' eventi dal Google Calendar sincronizzati','ok');
+  }catch(e){toast('Sync calendario: '+e.message,'err')}
+}
+
+const SHIFTS_SQL=`-- Tabelle del modulo Turni (esegui una volta)
+create table if not exists shift_members (
+  id text primary key,
+  name text,
+  color text,
+  email text,
+  gcal boolean default false,
+  updated_at timestamptz default now()
+);
+create table if not exists shift_items (
+  id text primary key,
+  member_id text,
+  kind text,           -- 'rule' | 'off' | 'extra' | 'gcal'
+  weekday int,         -- 1=Lun .. 7=Dom (regole ricorrenti)
+  date date,           -- eccezioni ed eventi calendario
+  start_min int,
+  end_min int,
+  title text,
+  updated_at timestamptz default now()
+);
+alter table shift_members enable row level security;
+alter table shift_items enable row level security;
+create policy "sm all" on shift_members for all using (true) with check (true);
+create policy "si all" on shift_items for all using (true) with check (true);
+alter publication supabase_realtime add table shift_members;
+alter publication supabase_realtime add table shift_items;`;
+
+function showShiftsSQL(){
+  const ov=document.createElement('div');ov.className='overlay';ov.style.zIndex='60';ov.onclick=e=>{if(e.target===ov)ov.remove()};
+  ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-h"><h3>SQL — tabelle turni</h3><div class="x" onclick="this.closest('.overlay').remove()">✕</div></div>
+    <div class="modal-b">
+      <div class="helptip">Supabase → SQL Editor → New query → incolla ed esegui.</div>
+      <textarea class="body" style="min-height:280px;font-family:'JetBrains Mono',monospace;font-size:12px" readonly>${esc(SHIFTS_SQL)}</textarea>
+      <button class="btn sm" onclick="copyShiftsSQL()">Copia SQL</button>
+    </div>
+    <div class="modal-f"><button class="btn primary" onclick="this.closest('.overlay').remove();shiftsLoad()">Ho eseguito l'SQL</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function copyShiftsSQL(){navigator.clipboard.writeText(SHIFTS_SQL).then(()=>toast('SQL copiato','ok')).catch(()=>toast('Copia non riuscita','err'))}
+
+/* ---- render turni ---- */
+function renderShifts(){
+  document.getElementById('viewTitle').textContent=state.view==='miadispo'?'La mia disponibilità':'Turni team';
+  const ta=document.getElementById('topActions');
+  ta.innerHTML=`<button class="btn sm ghost" onclick="refreshShifts()" title="Aggiorna"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Aggiorna</button>`;
+  const C=document.getElementById('content');
+  if(!supaReady()){C.innerHTML=`<div class="empty"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 8v4 M12 16h.01"/></svg><h4>Serve Supabase</h4><p>Il modulo Turni usa il database condiviso. Collega Supabase nelle Impostazioni per iniziare.</p><button class="btn primary" onclick="openSettings()">Apri impostazioni</button></div>`;return;}
+  if(state.shifts.needsSetup){C.innerHTML=`<div class="empty"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18"/></svg>
+    <h4>Configura le tabelle dei turni</h4>
+    <p>Manca lo schema sul database. Esegui una volta l'SQL nel <b>SQL Editor</b> di Supabase, poi ricontrolla.</p>
+    <button class="btn primary" onclick="showShiftsSQL()">Mostra SQL turni</button>
+    <div style="margin-top:10px"><button class="btn sm ghost" onclick="shiftsLoad()">Ho eseguito l'SQL — ricontrolla</button></div></div>`;return;}
+  C.innerHTML = state.view==='miadispo'?viewMiaDispo():viewGriglia();
+}
+
+/* ---- vista: griglia turni team ---- */
+function viewGriglia(){
+  const members=state.shifts.members;
+  if(!members.length){
+    return `<div class="empty"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg>
+      <h4>Nessuna disponibilità ancora</h4><p>Crea il tuo profilo e imposta le tue fasce: compariranno qui per tutto il team.</p>
+      <button class="btn primary" onclick="go('miadispo')">Imposta la mia disponibilità</button></div>`;
+  }
+  const t=today();const ws=startOfWeek(addDays(t,state.shifts.week*7));
+  const days=[];for(let i=0;i<7;i++)days.push(addDays(ws,i));
+  const wkLabel=`${ws.getDate()} ${ws.toLocaleDateString('it-IT',{month:'short'})} – ${addDays(ws,6).getDate()} ${addDays(ws,6).toLocaleDateString('it-IT',{month:'short'})}`;
+  const legend=members.map(m=>`<span class="cal-leg"><span class="sh-dot" style="background:${m.color}"></span>${esc(m.name)}${m.id===state.shifts.meId?' (tu)':''}</span>`).join('');
+  const grid=days.map(d=>{
+    const iso=isoD(d);const isToday=sameDay(d,t);const wknd=(d.getDay()===0||d.getDay()===6);
+    const rows=members.map(m=>{
+      const blocks=effectiveBlocks(m.id,iso);
+      const busy=state.shifts.gcal.filter(g=>g.member_id===m.id&&g.date===iso).sort((a,b)=>a.start_min-b.start_min);
+      if(!blocks.length&&!busy.length)return '';
+      const mine=m.id===state.shifts.meId;
+      return `<div class="sh-m">
+        <span class="sh-dot" style="background:${m.color}"></span>
+        <div class="sh-m-body">
+          <div class="sh-name">${esc(m.name)}</div>
+          ${blocks.length?`<div class="sh-blocks">${blocks.map(b=>`<span class="sh-chip"${mine?` onclick="offForDay('${m.id}','${iso}',${b.start},${b.end})" title="Rimuovi solo per questo giorno"`:''}>${m2t(b.start)}–${m2t(b.end)}</span>`).join('')}</div>`:''}
+          ${busy.map(g=>`<div class="sh-busy" title="${escAttr(g.title||'')}">🔒 ${m2t(g.start_min)}–${m2t(g.end_min)} ${esc(g.title||'')}</div>`).join('')}
+        </div></div>`;
+    }).join('');
+    return `<div class="cal-cell${isToday?' today':''}${wknd?' wknd':''}">
+      <div class="cal-cell-h"><span class="cal-dname">${d.toLocaleDateString('it-IT',{weekday:'short'})}</span><span class="cal-dnum">${d.getDate()}</span></div>
+      <div class="cal-items">${rows||'<div class="cal-empty">—</div>'}</div>
+    </div>`;
+  }).join('');
+  return `
+  <div class="cal-bar">
+    <button class="btn sm ghost" onclick="state.shifts.week--;render()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="cal-title"><b>${wkLabel}</b><span class="email-cell">${members.length} collaboratori${state.shifts.week===0?' · settimana corrente':''}</span></div>
+    <button class="btn sm ghost" onclick="state.shifts.week++;render()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+    ${state.shifts.week!==0?`<button class="btn sm" onclick="state.shifts.week=0;render()">Oggi</button>`:''}
+    <button class="btn sm primary" onclick="go('miadispo')">La mia disponibilità</button>
+  </div>
+  <div class="cal-grid">${grid}</div>
+  <div class="cal-legend">${legend}<span class="cal-leg" style="margin-left:auto;color:var(--faint)">🔒 = impegno da Google Calendar</span></div>`;
+}
+
+/* ---- vista: la mia disponibilità ---- */
+function viewMiaDispo(){
+  const m=me();
+  if(!m){
+    return `<div class="card" style="max-width:520px;padding:20px"><div class="section-h" style="margin-top:0"><h3>Crea il tuo profilo</h3><div class="line"></div></div>
+      <div class="form-row"><label>Nome</label><input id="me-name" value="${escAttr((state.google.email||'').split('@')[0])}" placeholder="Es. Giuseppe"></div>
+      <div class="form-row"><label>Colore</label><input id="me-color" type="color" value="${SHIFT_COLORS[state.shifts.members.length%SHIFT_COLORS.length]}" style="width:60px;height:38px;padding:2px"></div>
+      <label class="toggle" id="me-gcal" onclick="this.classList.toggle('on')"><span class="sw"></span><span>Sincronizza il mio Google Calendar (facoltativo)</span></label>
+      <div style="margin-top:14px"><button class="btn primary" onclick="saveMe()">Crea profilo</button></div></div>`;
+  }
+  const rulesByDay=wd=>state.shifts.rules.filter(r=>r.member_id===m.id&&r.weekday===wd).sort((a,b)=>a.start_min-b.start_min);
+  const t=today();
+  const myExc=state.shifts.exceptions.filter(e=>e.member_id===m.id&&parseD(e.date)>=addDays(t,-1)).sort((a,b)=>parseD(a.date)-parseD(b.date));
+  const myGcal=state.shifts.gcal.filter(g=>g.member_id===m.id).length;
+  const weekEditor=[1,2,3,4,5,6,7].map(wd=>{
+    const rs=rulesByDay(wd);
+    return `<div class="mp-day">
+      <div class="mp-dname">${WD_NAMES[wd]}</div>
+      <div class="mp-blocks">
+        ${rs.length?rs.map(r=>`<span class="sh-chip edit">${m2t(r.start_min)}–${m2t(r.end_min)}<button onclick="delItem('${r.id}')" title="Rimuovi">✕</button></span>`).join(''):'<span class="mp-none">nessuna fascia</span>'}
+      </div>
+      <div class="mp-add">
+        <input type="time" id="rb-s-${wd}" value="09:00"><span>–</span><input type="time" id="rb-e-${wd}" value="13:00">
+        <button class="btn sm" onclick="addRuleUI(${wd})">+ Aggiungi</button>
+      </div>
+    </div>`;
+  }).join('');
+  return `
+  <div class="card" style="padding:16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span class="sh-dot" style="width:14px;height:14px;background:${m.color}"></span>
+      <b style="font-size:15px">${esc(m.name)}</b>
+      <span class="email-cell">${esc(m.email||'')}</span>
+      <div style="flex:1"></div>
+      <button class="btn sm ghost" onclick="editProfile()">Modifica profilo</button>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <span class="chip ${m.gcal?'reply':'da'}"><span class="d"></span>${m.gcal?'Google Calendar attivo':'Google Calendar non collegato'}</span>
+      ${m.gcal?`<span class="email-cell">${myGcal} eventi sincronizzati</span><button class="btn sm" onclick="syncGcal()">Sincronizza ora</button>`:`<button class="btn sm" onclick="enableGcal()">Collega il mio calendario</button>`}
+    </div>
+  </div>
+
+  <div class="section-h" style="margin-top:0"><h3>Disponibilità settimanale ricorrente</h3><div class="line"></div>
+    <button class="btn sm" onclick="presetStandard()">Preset Lun–Ven 9–13, 15–19</button></div>
+  <div class="card" style="padding:6px 14px">${weekEditor}</div>
+
+  <div class="section-h"><h3>Eccezioni (giorni specifici)</h3><div class="line"></div></div>
+  <div class="card" style="padding:14px">
+    <div class="helptip" style="margin-bottom:10px">Togli o aggiungi disponibilità per un singolo giorno, senza toccare la regola settimanale. Puoi anche cliccare una tua fascia in "Turni team" per rimuoverla solo quel giorno.</div>
+    <div class="ex-add">
+      <input type="date" id="ex-date" value="${isoD(t)}">
+      <select id="ex-type"><option value="off">Rimuovi disponibilità</option><option value="extra">Aggiungi disponibilità</option></select>
+      <label class="ex-whole"><input type="checkbox" id="ex-whole"> tutto il giorno</label>
+      <input type="time" id="ex-s" value="09:00"><span>–</span><input type="time" id="ex-e" value="13:00">
+      <button class="btn sm primary" onclick="addExceptionUI()">Applica</button>
+    </div>
+    ${myExc.length?`<div style="margin-top:12px;display:flex;flex-direction:column;gap:6px">
+      ${myExc.map(e=>`<div class="ex-row">
+        <span class="chip ${e.kind==='off'?'stop':'reply'}"><span class="d"></span>${e.kind==='off'?'Rimossa':'Aggiunta'}</span>
+        <span>${fmtDLong(parseD(e.date))}</span>
+        <span class="email-cell">${e.start_min==null?'tutto il giorno':m2t(e.start_min)+'–'+m2t(e.end_min)}</span>
+        <div style="flex:1"></div>
+        <button class="btn sm ghost danger" onclick="delItem('${e.id}')">Annulla</button>
+      </div>`).join('')}
+    </div>`:'<div class="email-cell" style="margin-top:8px">Nessuna eccezione in programma.</div>'}
+  </div>`;
+}
+function editProfile(){
+  const m=me();if(!m)return;
+  const ov=document.createElement('div');ov.className='overlay';ov.style.zIndex='60';ov.onclick=e=>{if(e.target===ov)ov.remove()};
+  ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-h"><h3>Modifica profilo</h3><div class="x" onclick="this.closest('.overlay').remove()">✕</div></div>
+    <div class="modal-b">
+      <div class="form-row"><label>Nome</label><input id="me-name" value="${escAttr(m.name)}"></div>
+      <div class="form-row"><label>Colore</label><input id="me-color" type="color" value="${m.color}" style="width:60px;height:38px;padding:2px"></div>
+      <label class="toggle ${m.gcal?'on':''}" id="me-gcal" onclick="this.classList.toggle('on')"><span class="sw"></span><span>Sincronizza il mio Google Calendar</span></label>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="this.closest('.overlay').remove()">Annulla</button><button class="btn primary" onclick="this.closest('.overlay').remove();saveMe()">Salva</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function enableGcal(){
+  if(!googleReady()){toast('Prima connetti Google (Impostazioni)','warn');connectGoogle();return}
+  const m=me();if(!m)return;
+  supa.from('shift_members').update({gcal:true,updated_at:new Date().toISOString()}).eq('id',m.id).then(()=>{shiftsLoad().then(()=>syncGcal())});
 }
 
 /* ---------- DASHBOARD ---------- */
